@@ -35,7 +35,7 @@ uiContext_t ui_context;
 // SPI Buffer for io_event
 unsigned char G_io_seproxyhal_spi_buffer[IO_SEPROXYHAL_BUFFER_SIZE_B];
 
-uint32_t deserialize_uint32_t(unsigned char *buffer)
+uint32_t deserialize_uint32_t(const uint8_t *buffer)
 {
     uint32_t value = 0;
 
@@ -47,7 +47,7 @@ uint32_t deserialize_uint32_t(unsigned char *buffer)
 }
 
 // 20 bytes total
-void read_path_from_bytes(unsigned char *buffer, uint32_t *path) {
+void read_path_from_bytes(const uint8_t *buffer, uint32_t *path) {
     path[0] = deserialize_uint32_t(buffer);
     path[1] = deserialize_uint32_t(buffer + 4);
     path[2] = deserialize_uint32_t(buffer + 8);
@@ -91,22 +91,18 @@ void add_chunk_data() {
 
 // like https://github.com/lenondupe/ledger-app-stellar/blob/master/src/main.c#L1784
 uint32_t set_result_sign() {
-    cx_ecfp_public_key_t public_key;
     cx_ecfp_private_key_t private_key;
-    get_keypair_by_path((uint32_t *) tmp_ctx.signing_context.bip32, &public_key, &private_key);
-
-    public_key_le_to_be(&public_key);
+    get_private_key_for_path((uint32_t *) tmp_ctx.signing_context.bip32, &private_key);
 
     BEGIN_TRY {
         TRY {
             uint8_t signature[64];
-            near_message_sign(&private_key, public_key.W, (unsigned char *)tmp_ctx.signing_context.buffer, tmp_ctx.signing_context.buffer_used, signature);
+            near_message_sign(&private_key, (unsigned char *)tmp_ctx.signing_context.buffer, tmp_ctx.signing_context.buffer_used, signature);
 
             memcpy(G_io_apdu_buffer, signature, sizeof(signature));
         } FINALLY {
             // reset all private stuff
             explicit_bzero(&private_key, sizeof(cx_ecfp_private_key_t));
-            memset(&public_key, 0, sizeof(cx_ecfp_public_key_t));
         }
     }
     END_TRY;
@@ -272,6 +268,8 @@ void io_seproxyhal_display(const bagl_element_t *element) {
 }
 
 unsigned char io_event(unsigned char channel) {
+    UNUSED(channel);
+
     // nothing done with the event, throw an error on the transport layer if
     // needed
 

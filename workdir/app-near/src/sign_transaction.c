@@ -125,8 +125,10 @@ void sign_add_full_access_key_ux_flow_init() {
 }
 
 void handle_sign_transaction(uint8_t p1, uint8_t p2, uint8_t *input_buffer, uint16_t input_length, volatile unsigned int *flags, volatile unsigned int *tx) {
+    UNUSED(input_buffer);
     UNUSED(input_length);
     UNUSED(p2);
+    UNUSED(tx);
 
     if (p1 != P1_MORE && p1 != P1_LAST) {
         THROW(SW_INCORRECT_P1_P2);

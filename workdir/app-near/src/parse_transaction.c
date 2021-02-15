@@ -290,7 +290,7 @@ int parse_transaction() {
         // TODO: assert ed25519 key type
 
         // key data
-        char *data = borsh_read_fixed_buffer(32, &processed);
+        borsh_read_fixed_buffer(32, &processed);
         // TODO: Display Base58 key?
 
         // access key

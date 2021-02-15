@@ -43,8 +43,10 @@ UX_FLOW(
     &ux_display_public_flow_6_step,
     &ux_display_public_flow_7_step);
 
-void handle_get_public_key(uint8_t p1, uint8_t p2, uint8_t *input_buffer, uint16_t input_length, volatile unsigned int *flags, volatile unsigned int *tx) {
+void handle_get_public_key(uint8_t p1, uint8_t p2, const uint8_t *input_buffer, uint16_t input_length, volatile unsigned int *flags, volatile unsigned int *tx) {
+    UNUSED(p1);
     UNUSED(p2);
+    UNUSED(tx);
 
     init_context();
 
