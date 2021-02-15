@@ -91,6 +91,7 @@ int format_long_decimal_amount(size_t input_size, char *input, size_t output_siz
     if (len <= nomination) {
         // < 1.0
         memmove(output + 2 + (nomination - len), output, len);
+        /* coverity[bad_memset] */
         memset(output + 2, '0', (nomination - len));
         output[0] = '0';
         output[1] = '.';
