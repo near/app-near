@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "parse_transaction.h"
 
@@ -15,7 +16,7 @@ int format_long_int_amount(size_t input_size, char *input, size_t output_size, c
     // NOTE: Have to copy to have word-aligned array (otherwise crashing on read)
     // Lots of time has been lost debugging this, make sure to avoid unaligned RAM access (as compiler in BOLOS SDK won't)
     uint16_t aligned_amount[8];
-    os_memmove(aligned_amount, input, 16);
+    memcpy(aligned_amount, input, 16);
     // Convert size in bytes into words
     size_t n = input_size / 2;
 
@@ -66,7 +67,7 @@ int format_long_int_amount(size_t input_size, char *input, size_t output_size, c
         }
     }
     nscratch -= k;
-    os_memmove(scratch, scratch + k, nscratch + 1);
+    memmove(scratch, scratch + k, nscratch + 1);
 
     /* Convert the scratch space from BCD digits to ASCII. */
     for (k = 0; k < nscratch; ++k) {
@@ -74,7 +75,7 @@ int format_long_int_amount(size_t input_size, char *input, size_t output_size, c
     }
 
     /* Resize and return */
-    os_memmove(output, scratch, nscratch + 1);
+    memmove(output, scratch, nscratch + 1);
     return nscratch;
 }
 
@@ -89,15 +90,15 @@ int format_long_decimal_amount(size_t input_size, char *input, size_t output_siz
 
     if (len <= nomination) {
         // < 1.0
-        os_memmove(output + 2 + (nomination - len), output, len);
-        os_memset(output + 2, '0', (nomination - len));
+        memmove(output + 2 + (nomination - len), output, len);
+        memset(output + 2, '0', (nomination - len));
         output[0] = '0';
         output[1] = '.';
         len = nomination + 2;
     } else {
         // >= 1.0
         int int_len = len - nomination;
-        os_memmove(output + int_len + 1, output + int_len, nomination);
+        memmove(output + int_len + 1, output + int_len, nomination);
         output[int_len] = '.';
         len = len + 1;
     }
@@ -158,12 +159,12 @@ char *borsh_read_fixed_buffer(unsigned int buffer_len, unsigned int *processed) 
 
 void strcpy_ellipsis(size_t dst_size, char *dst, size_t src_size, char *src) {
     if (dst_size >= src_size + 1) {
-        os_memmove(dst, src, src_size);
+        memcpy(dst, src, src_size);
         dst[src_size] = 0;
         return;
     }
 
-    os_memmove(dst, src, dst_size);
+    memcpy(dst, src, dst_size);
     size_t ellipsis_start = dst_size >= 4 ? dst_size - 4 : 0;
     for (size_t i = ellipsis_start; i < dst_size; i++) {
         dst[i] = '.';
@@ -190,7 +191,7 @@ void strcpy_ellipsis(size_t dst_size, char *dst, size_t src_size, char *src) {
     format_long_decimal_amount(16, var_name, sizeof(ui_line), ui_line, 24);
 
 #define COPY_LITERAL(dst, src) \
-    os_memmove(dst, src, sizeof(src))
+    memcpy(dst, src, sizeof(src))
 
 typedef enum {
     at_create_account,
@@ -206,7 +207,7 @@ typedef enum {
 
 // Parse the transaction details for the user to approve
 int parse_transaction() {
-    os_memset(&ui_context, 0, sizeof(uiContext_t));
+    memset(&ui_context, 0, sizeof(uiContext_t));
 
     // TODO: Validate data when parsing tx
 

@@ -7,7 +7,7 @@
 static char address[FULL_ADDRESS_LENGTH];
 
 uint32_t set_result_get_public_key() {
-    os_memmove((char *) G_io_apdu_buffer, (char *) tmp_ctx.address_context.public_key, 32);
+    memcpy(G_io_apdu_buffer, tmp_ctx.address_context.public_key, 32);
     return 32;
 }
 
@@ -62,10 +62,10 @@ void handle_get_public_key(uint8_t p1, uint8_t p2, uint8_t *input_buffer, uint16
         THROW(INVALID_PARAMETER);
     }
 
-    os_memmove(tmp_ctx.address_context.public_key, public_key.W, 32);
+    memcpy(tmp_ctx.address_context.public_key, public_key.W, 32);
 
     const char prefix[] = "ed25519:";
-    os_memset(address, 0, sizeof(address));
+    memset(address, 0, sizeof(address));
     snprintf(address, sizeof(address), prefix);
     encode_base58(
         tmp_ctx.address_context.public_key, sizeof(tmp_ctx.address_context.public_key),

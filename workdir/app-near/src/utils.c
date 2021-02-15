@@ -23,7 +23,7 @@ unsigned char encode_base58(char WIDE *in, unsigned char length,
     if (length > sizeof(tmp)) {
         THROW(INVALID_PARAMETER);
     }
-    os_memmove(tmp, in, length);
+    memcpy(tmp, in, length);
     while ((zeroCount < length) && (tmp[zeroCount] == 0)) {
         ++zeroCount;
     }
@@ -53,7 +53,7 @@ unsigned char encode_base58(char WIDE *in, unsigned char length,
     if (maxoutlen < length) {
         THROW(EXCEPTION_OVERFLOW);
     }
-    os_memmove(out, (buffer + j), length);
+    memcpy(out, (buffer + j), length);
     return length;
 }
 

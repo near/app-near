@@ -73,7 +73,7 @@ void add_chunk_data() {
         data_size -= path_size;
         PRINTF("data_size: %d\n", data_size);
 
-        os_memmove((char *) tmp_ctx.signing_context.buffer, &G_io_apdu_buffer[25], data_size);
+        memcpy(tmp_ctx.signing_context.buffer, &G_io_apdu_buffer[25], data_size);
         PRINTF("buffer: %.*h\n", data_size, tmp_ctx.signing_context.buffer);
         tmp_ctx.signing_context.buffer_used += data_size;
     } else {
@@ -83,7 +83,7 @@ void add_chunk_data() {
         if (data_size > MAX_DATA_SIZE || tmp_ctx.signing_context.buffer_used + data_size > MAX_DATA_SIZE) {
             THROW(SW_BUFFER_OVERFLOW);
         }
-        os_memmove((char *) &tmp_ctx.signing_context.buffer[tmp_ctx.signing_context.buffer_used], &G_io_apdu_buffer[5], data_size);
+        memcpy(&tmp_ctx.signing_context.buffer[tmp_ctx.signing_context.buffer_used], &G_io_apdu_buffer[5], data_size);
         PRINTF("buffer: %.*h\n", data_size, &tmp_ctx.signing_context.buffer[tmp_ctx.signing_context.buffer_used]);
         tmp_ctx.signing_context.buffer_used += data_size;
     }
@@ -102,11 +102,11 @@ uint32_t set_result_sign() {
             uint8_t signature[64];
             near_message_sign(&private_key, public_key.W, (unsigned char *)tmp_ctx.signing_context.buffer, tmp_ctx.signing_context.buffer_used, signature);
 
-            os_memmove((char *)G_io_apdu_buffer, signature, sizeof(signature));
+            memcpy(G_io_apdu_buffer, signature, sizeof(signature));
         } FINALLY {
             // reset all private stuff
-            os_memset(&private_key, 0, sizeof(cx_ecfp_private_key_t));
-            os_memset(&public_key, 0, sizeof(cx_ecfp_public_key_t));
+            explicit_bzero(&private_key, sizeof(cx_ecfp_private_key_t));
+            memset(&public_key, 0, sizeof(cx_ecfp_public_key_t));
         }
     }
     END_TRY;
@@ -198,7 +198,7 @@ void handle_apdu(volatile unsigned int *flags, volatile unsigned int *tx, volati
 }
 
 void init_context() {
-    os_memset(&tmp_ctx, 0, sizeof(tmp_ctx));
+    memset(&tmp_ctx, 0, sizeof(tmp_ctx));
 }
 
 void app_main(void) {
