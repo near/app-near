@@ -55,40 +55,6 @@ void read_path_from_bytes(const uint8_t *buffer, uint32_t *path) {
     path[4] = deserialize_uint32_t(buffer + 16);
 }
 
-// Handle a signing request -- called both from the main apdu loop as well as from
-// the button handler after the user verifies the transaction.
-void add_chunk_data() {
-    // if this is a first chunk
-    if (tmp_ctx.signing_context.buffer_used == 0) {
-        // then there is the bip32 path in the first chunk - first 20 bytes of data
-        read_path_from_bytes(&G_io_apdu_buffer[5], (uint32_t *) tmp_ctx.signing_context.bip32);
-        int path_size = sizeof(tmp_ctx.signing_context.bip32);
-
-        // Update the other data from this segment
-        int data_size = G_io_apdu_buffer[4];
-        if (data_size < path_size) {
-            // TODO: Have specific error for underflow?
-            THROW(SW_BUFFER_OVERFLOW);
-        }
-        data_size -= path_size;
-        PRINTF("data_size: %d\n", data_size);
-
-        memcpy(tmp_ctx.signing_context.buffer, &G_io_apdu_buffer[25], data_size);
-        PRINTF("buffer: %.*h\n", data_size, tmp_ctx.signing_context.buffer);
-        tmp_ctx.signing_context.buffer_used += data_size;
-    } else {
-        // else update the data from entire segment.
-        int data_size = G_io_apdu_buffer[4];
-        PRINTF("data_size: %d\n", data_size);
-        if (data_size > MAX_DATA_SIZE || tmp_ctx.signing_context.buffer_used + data_size > MAX_DATA_SIZE) {
-            THROW(SW_BUFFER_OVERFLOW);
-        }
-        memcpy(&tmp_ctx.signing_context.buffer[tmp_ctx.signing_context.buffer_used], &G_io_apdu_buffer[5], data_size);
-        PRINTF("buffer: %.*h\n", data_size, &tmp_ctx.signing_context.buffer[tmp_ctx.signing_context.buffer_used]);
-        tmp_ctx.signing_context.buffer_used += data_size;
-    }
-}
-
 // like https://github.com/lenondupe/ledger-app-stellar/blob/master/src/main.c#L1784
 uint32_t set_result_sign() {
     cx_ecfp_private_key_t private_key;
