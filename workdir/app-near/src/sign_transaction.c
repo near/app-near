@@ -1,4 +1,5 @@
 #include "sign_transaction.h"
+#include "parse_transaction.h"
 #include "os.h"
 #include "ux.h"
 #include "utils.h"
