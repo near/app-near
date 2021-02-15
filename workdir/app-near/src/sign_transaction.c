@@ -119,12 +119,6 @@ void sign_add_function_call_key_ux_flow_init() {
     ux_flow_init(0, ux_display_sign_add_function_call_key_flow, NULL);
 }
 
-void sign_add_full_access_key_ux_flow_init() {
-    PRINTF("sign_add_full_access_key_ux_flow_init\n");
-    print_ui_context();
-    ux_flow_init(0, ux_display_sign_add_full_access_key_flow, NULL);
-}
-
 static void add_chunk_data() {
     // if this is a first chunk
     if (tmp_ctx.signing_context.buffer_used == 0) {
