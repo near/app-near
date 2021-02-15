@@ -119,41 +119,35 @@ void sign_add_function_call_key_ux_flow_init() {
     ux_flow_init(0, ux_display_sign_add_function_call_key_flow, NULL);
 }
 
-static void add_chunk_data() {
+static void add_chunk_data(const uint8_t *input_data, size_t input_length) {
     // if this is a first chunk
     if (tmp_ctx.signing_context.buffer_used == 0) {
         // then there is the bip32 path in the first chunk - first 20 bytes of data
-        read_path_from_bytes(&G_io_apdu_buffer[5], (uint32_t *) tmp_ctx.signing_context.bip32);
-        int path_size = sizeof(tmp_ctx.signing_context.bip32);
-
-        // Update the other data from this segment
-        int data_size = G_io_apdu_buffer[4];
-        if (data_size < path_size) {
+        size_t path_size = sizeof(tmp_ctx.signing_context.bip32);
+        if (input_length < path_size) {
             // TODO: Have specific error for underflow?
             THROW(SW_BUFFER_OVERFLOW);
         }
-        data_size -= path_size;
+        read_path_from_bytes(input_data, tmp_ctx.signing_context.bip32);
+
+        input_length -= path_size;
         PRINTF("data_size: %d\n", data_size);
 
-        memcpy(tmp_ctx.signing_context.buffer, &G_io_apdu_buffer[25], data_size);
-        PRINTF("buffer: %.*h\n", data_size, tmp_ctx.signing_context.buffer);
-        tmp_ctx.signing_context.buffer_used += data_size;
+        memcpy(tmp_ctx.signing_context.buffer, &input_data[path_size], input_length);
+        PRINTF("buffer: %.*h\n", input_length, tmp_ctx.signing_context.buffer);
     } else {
         // else update the data from entire segment.
-        int data_size = G_io_apdu_buffer[4];
-        PRINTF("data_size: %d\n", data_size);
-        if (tmp_ctx.signing_context.buffer_used + data_size > MAX_DATA_SIZE) {
+        PRINTF("data_size: %d\n", input_length);
+        if (tmp_ctx.signing_context.buffer_used + input_length > MAX_DATA_SIZE) {
             THROW(SW_BUFFER_OVERFLOW);
         }
-        memcpy(&tmp_ctx.signing_context.buffer[tmp_ctx.signing_context.buffer_used], &G_io_apdu_buffer[5], data_size);
-        PRINTF("buffer: %.*h\n", data_size, &tmp_ctx.signing_context.buffer[tmp_ctx.signing_context.buffer_used]);
-        tmp_ctx.signing_context.buffer_used += data_size;
+        memcpy(&tmp_ctx.signing_context.buffer[tmp_ctx.signing_context.buffer_used], input_data, input_length);
+        PRINTF("buffer: %.*h\n", input_length, &tmp_ctx.signing_context.buffer[tmp_ctx.signing_context.buffer_used]);
     }
+    tmp_ctx.signing_context.buffer_used += input_length;
 }
 
-void handle_sign_transaction(uint8_t p1, uint8_t p2, uint8_t *input_buffer, uint16_t input_length, volatile unsigned int *flags, volatile unsigned int *tx) {
-    UNUSED(input_buffer);
-    UNUSED(input_length);
+void handle_sign_transaction(uint8_t p1, uint8_t p2, const uint8_t *input_buffer, uint16_t input_length, volatile unsigned int *flags, volatile unsigned int *tx) {
     UNUSED(p2);
     UNUSED(tx);
 
@@ -164,7 +158,7 @@ void handle_sign_transaction(uint8_t p1, uint8_t p2, uint8_t *input_buffer, uint
     if (p1 == P1_LAST) {
         // TODO: Is network_byte used anywhere?
         tmp_ctx.signing_context.network_byte = p2;
-        add_chunk_data();
+        add_chunk_data(input_buffer, input_length);
 
         switch (parse_transaction()) {
             case SIGN_FLOW_GENERIC:
@@ -186,7 +180,7 @@ void handle_sign_transaction(uint8_t p1, uint8_t p2, uint8_t *input_buffer, uint
                 THROW(SW_CONDITIONS_NOT_SATISFIED);
         }
     } else {
-        add_chunk_data();
+        add_chunk_data(input_buffer, input_length);
         THROW(SW_OK);
     }
 
