@@ -176,6 +176,8 @@ void handle_sign_transaction(uint8_t p1, uint8_t p2, const uint8_t *input_buffer
             case SIGN_FLOW_ADD_FULL_ACCESS_KEY:
                 sign_add_function_call_key_ux_flow_init();
                 break;
+            case SIGN_PARSING_ERROR:
+                THROW(SW_BUFFER_OVERFLOW);
             default:
                 THROW(SW_CONDITIONS_NOT_SATISFIED);
         }
