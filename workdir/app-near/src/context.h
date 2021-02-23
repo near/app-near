@@ -21,7 +21,7 @@ typedef struct uiContext_t {
 typedef struct signingContext_t {
     // bip32 path
 	uint32_t bip32[5];
-	char buffer[MAX_DATA_SIZE];
+	uint8_t buffer[MAX_DATA_SIZE];
 	uint32_t buffer_used;
 	unsigned char network_byte;
 } signingContext_t;

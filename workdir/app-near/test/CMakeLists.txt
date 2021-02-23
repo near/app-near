@@ -10,6 +10,7 @@ add_executable(test_parser
         ../src/parse_transaction.c)
 
 target_include_directories(test_parser PRIVATE ../src)
+target_compile_options(test_parser PRIVATE -Wall -Wextra -pedantic)
 target_compile_definitions(test_parser PRIVATE UNITTEST)
 target_link_libraries(test_parser PRIVATE cmocka)
 

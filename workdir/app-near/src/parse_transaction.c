@@ -149,7 +149,7 @@ static int borsh_read_uint32(unsigned int *processed, uint32_t *n) {
     return 0;
 }
 
-static int borsh_read_buffer(uint32_t *buffer_len, char **buffer, unsigned int *processed) {
+static int borsh_read_buffer(uint32_t *buffer_len, uint8_t **buffer, unsigned int *processed) {
     if (borsh_read_uint32(processed, buffer_len)) {
         return SIGN_PARSING_ERROR;
     }
@@ -161,7 +161,7 @@ static int borsh_read_buffer(uint32_t *buffer_len, char **buffer, unsigned int *
     return 0;
 }
 
-static int borsh_read_fixed_buffer(unsigned int buffer_len, char **buffer, unsigned int *processed) {
+static int borsh_read_fixed_buffer(unsigned int buffer_len, uint8_t **buffer, unsigned int *processed) {
     if (check_overflow(*processed, buffer_len)) {
         return SIGN_PARSING_ERROR;
     }
@@ -195,7 +195,7 @@ static void strcpy_ellipsis(size_t dst_size, char *dst, size_t src_size, char *s
 #define BORSH_DISPLAY_STRING(var_name, ui_line) \
     uint32_t var_name##_len; \
     char *var_name; \
-    if (borsh_read_buffer(&var_name##_len, &var_name, &processed)) { \
+    if (borsh_read_buffer(&var_name##_len, (uint8_t **) &var_name, &processed)) { \
         return SIGN_PARSING_ERROR; \
     } \
     strcpy_ellipsis(sizeof(ui_line), ui_line, var_name##_len, var_name); \
@@ -205,7 +205,7 @@ static void strcpy_ellipsis(size_t dst_size, char *dst, size_t src_size, char *s
     if (check_overflow(processed, 16)) { \
         return SIGN_PARSING_ERROR; \
     } \
-    char *var_name = &tmp_ctx.signing_context.buffer[processed]; \
+    char *var_name = (char *) &tmp_ctx.signing_context.buffer[processed]; \
     processed += 16; \
     format_long_decimal_amount(16, var_name, sizeof(ui_line), ui_line, 24);
 
@@ -285,7 +285,7 @@ int parse_transaction() {
         // args
         uint32_t args_len;
         char *args;
-        if (borsh_read_buffer(&args_len, &args, &processed)) {
+        if (borsh_read_buffer(&args_len, (uint8_t **) &args, &processed)) {
             return SIGN_PARSING_ERROR;
         }
         if (args_len > 0 && args[0] == '{') {
@@ -317,7 +317,7 @@ int parse_transaction() {
         // TODO: assert ed25519 key type
 
         // key data
-        char *key;
+        uint8_t *key;
         if (borsh_read_fixed_buffer(32, &key, &processed)) {
             return SIGN_PARSING_ERROR;
         }
