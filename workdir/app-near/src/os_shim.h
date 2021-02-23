@@ -9,9 +9,12 @@
         printf("THROW(0x%x)\n", x); \
         exit(1); \
     } while (0);
-
+#ifdef UNITTEST
+    #define PRINTF(...)
+#else
     #include <stdio.h>
     #define PRINTF printf
+#endif // UNITTEST
 #endif
 
 #endif /* __OS_SHIM_H__ */
