@@ -18,11 +18,11 @@ extern unsigned long _stack, _estack;
 
 void print_available_stack();
 
-#define INIT_CANARY                                                                \
-    STACK_CANARY = 0xDEADBEEF;                                                     \
-    PLOC();                                                                        \
-    PRINTF("Cannary initialized. STACK_START 0x%p STACK_END 0x%p STACK_SIZE=%d\n", \
-           &_stack, &_estack, ((uintptr_t)&_estack) - ((uintptr_t)&_stack));       \
+#define INIT_CANARY                                                                     \
+    STACK_CANARY = 0xDEADBEEF;                                                          \
+    PLOC();                                                                             \
+    PRINTF("CANNARY INITIALIZED \nSTACK_START 0x%p \nSTACK_END 0x%p \nSTACK_SIZE=%d\n", \
+           &_stack, &_estack, ((uintptr_t)&_estack) - ((uintptr_t)&_stack));            \
     print_available_stack();
 
 #define CHECK_CANARY                              \
