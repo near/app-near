@@ -23,7 +23,7 @@ unsigned char encode_base58(char WIDE *in, unsigned char length,
     if (length > sizeof(tmp)) {
         THROW(INVALID_PARAMETER);
     }
-    os_memmove(tmp, in, length);
+    memcpy(tmp, in, length);
     while ((zeroCount < length) && (tmp[zeroCount] == 0)) {
         ++zeroCount;
     }
@@ -53,7 +53,7 @@ unsigned char encode_base58(char WIDE *in, unsigned char length,
     if (maxoutlen < length) {
         THROW(EXCEPTION_OVERFLOW);
     }
-    os_memmove(out, (buffer + j), length);
+    memcpy(out, (buffer + j), length);
     return length;
 }
 
@@ -64,20 +64,4 @@ void send_response(uint8_t tx, bool approve) {
     io_exchange(CHANNEL_APDU | IO_RETURN_AFTER_TX, tx);
     // Display back the original UX
     ui_idle();
-}
-
-unsigned int ui_prepro(const bagl_element_t *element) {
-    unsigned int display = 1;
-    if (element->component.userid > 0) {
-        display = (ux_step == element->component.userid - 1);
-        if (display) {
-            if (element->component.userid == 1) {
-                UX_CALLBACK_SET_INTERVAL(2000);
-            }
-            else {
-                UX_CALLBACK_SET_INTERVAL(MAX(3000, 1000 + bagl_label_roundtrip_duration_ms(element, 7)));
-            }
-        }
-    }
-    return display;
 }

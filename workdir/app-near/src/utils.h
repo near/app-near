@@ -14,8 +14,6 @@ typedef enum rlpTxType {
     TX_FEE
 } rlpTxType;
 
-unsigned int ui_prepro(const bagl_element_t *element);
-
 unsigned char encode_base58(char WIDE *in, unsigned char length,
                            char *out, unsigned char maxoutlen);
 

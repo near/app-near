@@ -7,7 +7,8 @@ RUN dpkg --add-architecture i386
 RUN apt-get update && \
     apt-get -y install libudev-dev libusb-1.0-0-dev && \
     apt-get -y install libc6:i386 libncurses5:i386 libstdc++6:i386 libc6-dev-i386 -y > /dev/null && \
-    apt-get -y install binutils-arm-none-eabi
+    apt-get -y install binutils-arm-none-eabi && \
+    apt-get -y install libcmocka-dev
 
 ADD install_compiler.sh /tmp/install_compiler.sh
 RUN /tmp/install_compiler.sh
