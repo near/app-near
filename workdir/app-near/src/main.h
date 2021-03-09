@@ -26,7 +26,7 @@
 
 #include "context.h"
 
-void read_path_from_bytes(unsigned char *buffer, uint32_t *path);
+void read_path_from_bytes(const uint8_t *buffer, uint32_t *path);
 bool get_ed25519_public_key_for_path(const uint32_t* path, cx_ecfp_public_key_t* public_key);
 
 void init_context();
