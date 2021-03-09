@@ -20,8 +20,7 @@ $(error Environment variable BOLOS_SDK is not set)
 endif
 include $(BOLOS_SDK)/Makefile.defines
 
-APP_LOAD_PARAMS= --curve ed25519 --path "44'/397'" --appFlags 0x240 $(COMMON_LOAD_PARAMS) --tlvraw 9F:01
-DEFINES += HAVE_PENDING_REVIEW_SCREEN
+APP_LOAD_PARAMS= --curve ed25519 --path "44'/397'" --appFlags 0x240 $(COMMON_LOAD_PARAMS)
 
 APPVERSION_M=1
 APPVERSION_N=1
