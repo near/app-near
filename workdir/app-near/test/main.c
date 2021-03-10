@@ -32,8 +32,8 @@ static void test_parse_transfer_1(void **state) {
                     tmp_ctx.signing_context.buffer);
   int active_flow = parse_transaction();
 
-  assert_string_equal(ui_context.line1, "transfer");  // action
-  assert_string_equal(ui_context.line2, "vg");        // receiver
+  assert_string_equal(ui_context.line1, "transfer");                  // action
+  assert_string_equal(ui_context.line2, "vg");                        // receiver
   assert_string_equal(ui_context.line3, "test-connect-ledger.test");  // signer
   assert_string_equal(ui_context.amount, "0.002");                    // amount
   assert_string_equal(ui_context.long_line, "");
@@ -56,6 +56,26 @@ static void test_parse_transfer_2(void **state) {
   assert_string_equal(ui_context.long_line, "");
   assert_string_equal(ui_context.line5, "");
   assert_int_equal(active_flow, SIGN_FLOW_TRANSFER);
+}
+
+static char test_parse_transfer_3(void **state) {
+    (void)state;
+
+    tmp_ctx.signing_context.buffer_used =
+        load_testcase("../testcases/transfer_3_transaction.raw",
+                    tmp_ctx.signing_context.buffer);
+    int active_flow = parse_transaction();
+
+    assert_string_equal(ui_context.line1, "transfer");                         // action
+    // accounts with max Account ID length (64 characters)
+    assert_string_equal(ui_context.line2,
+        "test_acc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab.testnet");  // receiver
+    assert_string_equal(ui_context.line3,
+        "test_acc_2_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab.testnet");  // signer
+    assert_string_equal(ui_context.amount, "0.123");                          // amount
+    assert_string_equal(ui_context.long_line, "");
+    assert_string_equal(ui_context.line5, "");
+    assert_int_equal(active_flow, SIGN_FLOW_TRANSFER);
 }
 
 static void test_parse_function_call(void **state) {
@@ -140,7 +160,7 @@ static void test_parse_add_limited_key(void **state) {
   assert_string_equal(ui_context.line3, "random_acc1.near");         // signer
   assert_string_equal(ui_context.amount, "");
   assert_string_equal(ui_context.long_line, "");
-  assert_string_equal(ui_context.line5, "0.00000000000000001");  // limitation
+  assert_string_equal(ui_context.line5, "0.00000000000000001");      // limitation
   assert_int_equal(active_flow, SIGN_FLOW_ADD_FUNCTION_CALL_KEY);
 }
 
@@ -157,7 +177,7 @@ static void test_parse_add_unlimited_key(void **state) {
   assert_string_equal(ui_context.line3, "random_acc1.near");         // signer
   assert_string_equal(ui_context.amount, "");
   assert_string_equal(ui_context.long_line, "");
-  assert_string_equal(ui_context.line5, "Unlimited");  // unlimited
+  assert_string_equal(ui_context.line5, "Unlimited");                // unlimited
   assert_int_equal(active_flow, SIGN_FLOW_ADD_FUNCTION_CALL_KEY);
 }
 
@@ -217,6 +237,7 @@ int main() {
   const struct CMUnitTest tests[] = {
       cmocka_unit_test(test_parse_transfer_1),
       cmocka_unit_test(test_parse_transfer_2),
+      cmocka_unit_test(test_parse_transfer_3),
       cmocka_unit_test(test_parse_function_call),
       cmocka_unit_test(test_parse_create_account),
       cmocka_unit_test(test_parse_deploy_contract),
