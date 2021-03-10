@@ -7,11 +7,11 @@
 
 // A place to store information about the transaction
 // for displaying to the user when requesting approval
-// 44 for address/id and +1 for \0
+// 64 bytes for addresses and 44 bytes for other data (+1 byte for \0)
 typedef struct uiContext_t {
 	char line1[45];
-	char line2[45];
-	char line3[45];
+	char line2[65];
+	char line3[65];
 	char line5[45];
 	char amount[45];
 	char long_line[250];
