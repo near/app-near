@@ -42,3 +42,14 @@ If you get an error, you may need to also set the following env var:
   ```
 
   And then run the make command again.
+
+## How to debug with GDB
+You can debug this app in Speculos emulator. Follow [this](https://ledger.readthedocs.io/en/latest/userspace/speculos.html) guide to setup it.
+
+Add breakpoints in GDB interface or modify `speculos/tools/debug.sh` to make them permanent between GDB sessions.
+
+Example:
+- `b handle_apdu`
+
+It is useful to monitor the end of the stack area with watchpoints
+- `watch *((volatile uint32_t *)&_stack)`

@@ -27,7 +27,6 @@
 #include "main.h"
 #include "near.h"
 #include "crypto/ledger_crypto.h"
-#include "canary.h"
 
 // Temporary area to sore stuff and reuse the same memory
 tmpContext_t tmp_ctx;
@@ -192,7 +191,6 @@ void app_main(void) {
                 }
 
                 PRINTF("New APDU received:\n%.*H\n", rx, G_io_apdu_buffer);
-                INIT_CANARY;
                 handle_apdu(&flags, &tx, rx);
             }
             CATCH(EXCEPTION_IO_RESET) {

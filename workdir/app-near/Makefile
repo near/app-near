@@ -86,7 +86,6 @@ DEFINES       += HAVE_UX_FLOW
 # Enabling debug PRINTF
 DEBUG = 0
 ifneq ($(DEBUG),0)
-		DEFINES += HAVE_BOLOS_APP_STACK_CANARY
 
         ifeq ($(TARGET_NAME),TARGET_NANOX)
                 DEFINES   += HAVE_PRINTF PRINTF=mcu_usb_printf
