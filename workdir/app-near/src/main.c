@@ -36,7 +36,7 @@ uiContext_t ui_context;
 // SPI Buffer for io_event
 unsigned char G_io_seproxyhal_spi_buffer[IO_SEPROXYHAL_BUFFER_SIZE_B];
 
-uint32_t deserialize_uint32_t(unsigned char *buffer)
+uint32_t deserialize_uint32_t(const uint8_t *buffer)
 {
     uint32_t value = 0;
 
@@ -48,7 +48,7 @@ uint32_t deserialize_uint32_t(unsigned char *buffer)
 }
 
 // 20 bytes total
-void read_path_from_bytes(unsigned char *buffer, uint32_t *path) {
+void read_path_from_bytes(const uint8_t *buffer, uint32_t *path) {
     path[0] = deserialize_uint32_t(buffer);
     path[1] = deserialize_uint32_t(buffer + 4);
     path[2] = deserialize_uint32_t(buffer + 8);
@@ -56,58 +56,20 @@ void read_path_from_bytes(unsigned char *buffer, uint32_t *path) {
     path[4] = deserialize_uint32_t(buffer + 16);
 }
 
-// Handle a signing request -- called both from the main apdu loop as well as from
-// the button handler after the user verifies the transaction.
-void add_chunk_data() {
-    // if this is a first chunk
-    if (tmp_ctx.signing_context.buffer_used == 0) {
-        // then there is the bip32 path in the first chunk - first 20 bytes of data
-        read_path_from_bytes(&G_io_apdu_buffer[5], (uint32_t *) tmp_ctx.signing_context.bip32);
-        int path_size = sizeof(tmp_ctx.signing_context.bip32);
-
-        // Update the other data from this segment
-        int data_size = G_io_apdu_buffer[4];
-        if (data_size < path_size) {
-            // TODO: Have specific error for underflow?
-            THROW(SW_BUFFER_OVERFLOW);
-        }
-        data_size -= path_size;
-        PRINTF("data_size: %d\n", data_size);
-
-        os_memmove((char *) tmp_ctx.signing_context.buffer, &G_io_apdu_buffer[25], data_size);
-        PRINTF("buffer: %.*h\n", data_size, tmp_ctx.signing_context.buffer);
-        tmp_ctx.signing_context.buffer_used += data_size;
-    } else {
-        // else update the data from entire segment.
-        int data_size = G_io_apdu_buffer[4];
-        PRINTF("data_size: %d\n", data_size);
-        if (data_size > MAX_DATA_SIZE || tmp_ctx.signing_context.buffer_used + data_size > MAX_DATA_SIZE) {
-            THROW(SW_BUFFER_OVERFLOW);
-        }
-        os_memmove((char *) &tmp_ctx.signing_context.buffer[tmp_ctx.signing_context.buffer_used], &G_io_apdu_buffer[5], data_size);
-        PRINTF("buffer: %.*h\n", data_size, &tmp_ctx.signing_context.buffer[tmp_ctx.signing_context.buffer_used]);
-        tmp_ctx.signing_context.buffer_used += data_size;
-    }
-}
-
 // like https://github.com/lenondupe/ledger-app-stellar/blob/master/src/main.c#L1784
 uint32_t set_result_sign() {
-    cx_ecfp_public_key_t public_key;
     cx_ecfp_private_key_t private_key;
-    get_keypair_by_path((uint32_t *) tmp_ctx.signing_context.bip32, &public_key, &private_key);
-
-    public_key_le_to_be(&public_key);
+    get_private_key_for_path((uint32_t *) tmp_ctx.signing_context.bip32, &private_key);
 
     BEGIN_TRY {
         TRY {
             uint8_t signature[64];
-            near_message_sign(&private_key, public_key.W, (unsigned char *)tmp_ctx.signing_context.buffer, tmp_ctx.signing_context.buffer_used, signature);
+            near_message_sign(&private_key, (unsigned char *)tmp_ctx.signing_context.buffer, tmp_ctx.signing_context.buffer_used, signature);
 
-            os_memmove((char *)G_io_apdu_buffer, signature, sizeof(signature));
+            memcpy(G_io_apdu_buffer, signature, sizeof(signature));
         } FINALLY {
             // reset all private stuff
-            os_memset(&private_key, 0, sizeof(cx_ecfp_private_key_t));
-            os_memset(&public_key, 0, sizeof(cx_ecfp_public_key_t));
+            explicit_bzero(&private_key, sizeof(cx_ecfp_private_key_t));
         }
     }
     END_TRY;
@@ -199,7 +161,7 @@ void handle_apdu(volatile unsigned int *flags, volatile unsigned int *tx, volati
 }
 
 void init_context() {
-    os_memset(&tmp_ctx, 0, sizeof(tmp_ctx));
+    memset(&tmp_ctx, 0, sizeof(tmp_ctx));
 }
 
 void app_main(void) {
@@ -274,6 +236,8 @@ void io_seproxyhal_display(const bagl_element_t *element) {
 }
 
 unsigned char io_event(unsigned char channel) {
+    UNUSED(channel);
+
     // nothing done with the event, throw an error on the transport layer if
     // needed
 
@@ -301,19 +265,7 @@ unsigned char io_event(unsigned char channel) {
             break;
 
         case SEPROXYHAL_TAG_TICKER_EVENT:
-            UX_TICKER_EVENT(G_io_seproxyhal_spi_buffer,
-            {
-#ifndef TARGET_NANOX
-                if (UX_ALLOWED) {
-                    if (ux_step_count) {
-                    // prepare next screen
-                    ux_step = (ux_step+1)%ux_step_count;
-                    // redisplay screen
-                    UX_REDISPLAY();
-                    }
-                }
-#endif // TARGET_NANOX
-            });
+            UX_TICKER_EVENT(G_io_seproxyhal_spi_buffer, {});
             break;
     }
 

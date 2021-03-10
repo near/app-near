@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "parse_transaction.h"
 
@@ -11,11 +12,11 @@
  Adapted from https://en.wikipedia.org/wiki/Double_dabble#C_implementation
  Returns: length of resulting string or -1 for error
 */
-int format_long_int_amount(size_t input_size, char *input, size_t output_size, char *output) {
+static int format_long_int_amount(size_t input_size, char *input, size_t output_size, char *output) {
     // NOTE: Have to copy to have word-aligned array (otherwise crashing on read)
     // Lots of time has been lost debugging this, make sure to avoid unaligned RAM access (as compiler in BOLOS SDK won't)
     uint16_t aligned_amount[8];
-    os_memmove(aligned_amount, input, 16);
+    memcpy(aligned_amount, input, 16);
     // Convert size in bytes into words
     size_t n = input_size / 2;
 
@@ -66,7 +67,7 @@ int format_long_int_amount(size_t input_size, char *input, size_t output_size, c
         }
     }
     nscratch -= k;
-    os_memmove(scratch, scratch + k, nscratch + 1);
+    memmove(scratch, scratch + k, nscratch + 1);
 
     /* Convert the scratch space from BCD digits to ASCII. */
     for (k = 0; k < nscratch; ++k) {
@@ -74,11 +75,11 @@ int format_long_int_amount(size_t input_size, char *input, size_t output_size, c
     }
 
     /* Resize and return */
-    os_memmove(output, scratch, nscratch + 1);
+    memmove(output, scratch, nscratch + 1);
     return nscratch;
 }
 
-int format_long_decimal_amount(size_t input_size, char *input, size_t output_size, char *output, int nomination) {
+static int format_long_decimal_amount(size_t input_size, char *input, size_t output_size, char *output, int nomination) {
     int len = format_long_int_amount(input_size, input, output_size, output);
 
     if (len < 0 || (size_t) len + 2 > output_size) {
@@ -89,15 +90,16 @@ int format_long_decimal_amount(size_t input_size, char *input, size_t output_siz
 
     if (len <= nomination) {
         // < 1.0
-        os_memmove(output + 2 + (nomination - len), output, len);
-        os_memset(output + 2, '0', (nomination - len));
+        memmove(output + 2 + (nomination - len), output, len);
+        /* coverity[bad_memset] */
+        memset(output + 2, '0', (nomination - len));
         output[0] = '0';
         output[1] = '.';
         len = nomination + 2;
     } else {
         // >= 1.0
         int int_len = len - nomination;
-        os_memmove(output + int_len + 1, output + int_len, nomination);
+        memmove(output + int_len + 1, output + int_len, nomination);
         output[int_len] = '.';
         len = len + 1;
     }
@@ -118,52 +120,64 @@ int format_long_decimal_amount(size_t input_size, char *input, size_t output_siz
     return len;
 }
 
-void check_overflow(unsigned int processed, unsigned int size) {
+static int check_overflow(unsigned int processed, unsigned int size) {
     PRINTF("check_overflow %d %d %d\n", processed, size, tmp_ctx.signing_context.buffer_used);
     if (size > tmp_ctx.signing_context.buffer_used || processed + size > tmp_ctx.signing_context.buffer_used) {
-        THROW(SW_BUFFER_OVERFLOW);
+        return SIGN_PARSING_ERROR;
     }
+    return 0;
 }
 
 #define PRINT_REMAINING_BUFFER() \
     PRINTF("remaining buffer: %.*h\n", tmp_ctx.signing_context.buffer_used - processed, &tmp_ctx.signing_context.buffer[processed]);
 
-uint8_t borsh_read_uint8(unsigned int *processed) {
-    check_overflow(*processed, 1);
-    uint8_t result = *((uint8_t *) &tmp_ctx.signing_context.buffer[*processed]);
+static int borsh_read_uint8(unsigned int *processed, uint8_t *n) {
+    if (check_overflow(*processed, 1)) {
+        return SIGN_PARSING_ERROR;
+    }
+    *n = *((uint8_t *) &tmp_ctx.signing_context.buffer[*processed]);
     *processed += 1;
-    return result;
+    return 0;
 }
 
-uint32_t borsh_read_uint32(unsigned int *processed) {
-    check_overflow(*processed, 4);
-    uint32_t result = *((uint32_t *) &tmp_ctx.signing_context.buffer[*processed]);
+static int borsh_read_uint32(unsigned int *processed, uint32_t *n) {
+    if (check_overflow(*processed, 4)) {
+        return SIGN_PARSING_ERROR;
+    }
+    *n = *((uint32_t *) &tmp_ctx.signing_context.buffer[*processed]);
     *processed += 4;
-    return result;
+    return 0;
 }
 
-void borsh_read_buffer(uint32_t *buffer_len, char **buffer, unsigned int *processed) {
-    *buffer_len = borsh_read_uint32(processed);
-    check_overflow(*processed, *buffer_len);
+static int borsh_read_buffer(uint32_t *buffer_len, uint8_t **buffer, unsigned int *processed) {
+    if (borsh_read_uint32(processed, buffer_len)) {
+        return SIGN_PARSING_ERROR;
+    }
+    if (check_overflow(*processed, *buffer_len)) {
+        return SIGN_PARSING_ERROR;
+    }
     *buffer = &tmp_ctx.signing_context.buffer[*processed];
     *processed += *buffer_len;
+    return 0;
 }
 
-char *borsh_read_fixed_buffer(unsigned int buffer_len, unsigned int *processed) {
-    check_overflow(*processed, buffer_len);
-    char *buffer = &tmp_ctx.signing_context.buffer[*processed];
+static int borsh_read_fixed_buffer(unsigned int buffer_len, uint8_t **buffer, unsigned int *processed) {
+    if (check_overflow(*processed, buffer_len)) {
+        return SIGN_PARSING_ERROR;
+    }
+    *buffer = &tmp_ctx.signing_context.buffer[*processed];
     *processed += buffer_len;
-    return buffer;
+    return 0;
 }
 
-void strcpy_ellipsis(size_t dst_size, char *dst, size_t src_size, char *src) {
+static void strcpy_ellipsis(size_t dst_size, char *dst, size_t src_size, char *src) {
     if (dst_size >= src_size + 1) {
-        os_memmove(dst, src, src_size);
+        memcpy(dst, src, src_size);
         dst[src_size] = 0;
         return;
     }
 
-    os_memmove(dst, src, dst_size);
+    memcpy(dst, src, dst_size);
     size_t ellipsis_start = dst_size >= 4 ? dst_size - 4 : 0;
     for (size_t i = ellipsis_start; i < dst_size; i++) {
         dst[i] = '.';
@@ -173,24 +187,30 @@ void strcpy_ellipsis(size_t dst_size, char *dst, size_t src_size, char *src) {
 }
 
 #define BORSH_SKIP(size) \
-    check_overflow(processed, size); \
+    if (check_overflow(processed, size)) { \
+        return SIGN_PARSING_ERROR; \
+    } \
     processed += size;
 
 #define BORSH_DISPLAY_STRING(var_name, ui_line) \
     uint32_t var_name##_len; \
     char *var_name; \
-    borsh_read_buffer(&var_name##_len, &var_name, &processed); \
+    if (borsh_read_buffer(&var_name##_len, (uint8_t **) &var_name, &processed)) { \
+        return SIGN_PARSING_ERROR; \
+    } \
     strcpy_ellipsis(sizeof(ui_line), ui_line, var_name##_len, var_name); \
     PRINTF("%s: %s\n", #var_name, ui_line);
 
 #define BORSH_DISPLAY_AMOUNT(var_name, ui_line) \
-    check_overflow(processed, 16); \
-    char *var_name = &tmp_ctx.signing_context.buffer[processed]; \
+    if (check_overflow(processed, 16)) { \
+        return SIGN_PARSING_ERROR; \
+    } \
+    char *var_name = (char *) &tmp_ctx.signing_context.buffer[processed]; \
     processed += 16; \
     format_long_decimal_amount(16, var_name, sizeof(ui_line), ui_line, 24);
 
 #define COPY_LITERAL(dst, src) \
-    os_memmove(dst, src, sizeof(src))
+    memcpy(dst, src, sizeof(src))
 
 typedef enum {
     at_create_account,
@@ -206,7 +226,7 @@ typedef enum {
 
 // Parse the transaction details for the user to approve
 int parse_transaction() {
-    os_memset(&ui_context, 0, sizeof(uiContext_t));
+    memset(&ui_context, 0, sizeof(uiContext_t));
 
     // TODO: Validate data when parsing tx
 
@@ -228,7 +248,10 @@ int parse_transaction() {
     BORSH_SKIP(32);
 
     // actions
-    uint32_t actions_len = borsh_read_uint32(&processed);
+    uint32_t actions_len;
+    if (borsh_read_uint32(&processed, &actions_len)) {
+        return SIGN_PARSING_ERROR;
+    }
     PRINTF("actions_len: %d\n", actions_len);
 
     if (actions_len != 1) {
@@ -239,7 +262,10 @@ int parse_transaction() {
     // TODO: Parse more than one action
 
     // action type
-    uint8_t action_type = borsh_read_uint8(&processed);
+    uint8_t action_type;
+    if (borsh_read_uint8(&processed, &action_type)) {
+        return SIGN_PARSING_ERROR;
+    }
     PRINTF("action_type: %d\n", action_type);
 
     // TODO: assert action_type <= at_last_value
@@ -259,7 +285,9 @@ int parse_transaction() {
         // args
         uint32_t args_len;
         char *args;
-        borsh_read_buffer(&args_len, &args, &processed);
+        if (borsh_read_buffer(&args_len, (uint8_t **) &args, &processed)) {
+            return SIGN_PARSING_ERROR;
+        }
         if (args_len > 0 && args[0] == '{') {
             // Args look like JSON
             strcpy_ellipsis(sizeof(ui_context.long_line), ui_context.long_line, args_len, args);
@@ -289,7 +317,10 @@ int parse_transaction() {
         // TODO: assert ed25519 key type
 
         // key data
-        char *data = borsh_read_fixed_buffer(32, &processed);
+        uint8_t *key;
+        if (borsh_read_fixed_buffer(32, &key, &processed)) {
+            return SIGN_PARSING_ERROR;
+        }
         // TODO: Display Base58 key?
 
         // access key
@@ -298,13 +329,19 @@ int parse_transaction() {
         BORSH_SKIP(8);
 
         // permission
-        uint8_t permission_type = borsh_read_uint8(&processed);
+        uint8_t permission_type;
+        if (borsh_read_uint8(&processed, &permission_type)) {
+            return SIGN_PARSING_ERROR;
+        }
         PRINTF("permission_type: %d\n", permission_type);
         if (permission_type == 0) {
             // function call
 
             // allowance
-            uint8_t has_allowance = borsh_read_uint8(&processed);
+            uint8_t has_allowance;
+            if (borsh_read_uint8(&processed, &has_allowance)) {
+                return SIGN_PARSING_ERROR;
+            }
             if (has_allowance) {
                 BORSH_DISPLAY_AMOUNT(allowance, ui_context.line5);
             } else {
@@ -354,9 +391,8 @@ int parse_transaction() {
     }
 
     default:
-        // TODO: Throw more specific error?
-        THROW(SW_CONDITIONS_NOT_SATISFIED);
-
+        // TODO: Return more specific error?
+        return SIGN_PARSING_ERROR;
     } // switch
 
     PRINT_REMAINING_BUFFER();

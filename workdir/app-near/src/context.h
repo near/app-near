@@ -7,11 +7,11 @@
 
 // A place to store information about the transaction
 // for displaying to the user when requesting approval
-// 44 for address/id and +1 for \0
+// 64 bytes for addresses and 44 bytes for other data (+1 byte for \0)
 typedef struct uiContext_t {
 	char line1[45];
-	char line2[45];
-	char line3[45];
+	char line2[65];
+	char line3[65];
 	char line5[45];
 	char amount[45];
 	char long_line[250];
@@ -21,7 +21,7 @@ typedef struct uiContext_t {
 typedef struct signingContext_t {
     // bip32 path
 	uint32_t bip32[5];
-	char buffer[MAX_DATA_SIZE];
+	uint8_t buffer[MAX_DATA_SIZE];
 	uint32_t buffer_used;
 	unsigned char network_byte;
 } signingContext_t;
