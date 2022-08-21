@@ -1,7 +1,20 @@
 #ifndef __CONSTANTS_H__
 #define __CONSTANTS_H__
 
+// Hardware dependent limits:
+//   Ledger Nano X has 32K RAM
+//   Ledger Nano S has 4K RAM
+#if defined(TARGET_NANOX) || defined(TARGET_NANOS2)
+
+// Ledger Nano X or Nano S Plus
+#define MAX_DATA_SIZE 10000
+
+#else
+
+// Ledger Nano S
 #define MAX_DATA_SIZE 650
+
+#endif
 
 // Host innteration communication protocol
 #define CLA 0x80                // CLASS? 
