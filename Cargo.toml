@@ -41,6 +41,21 @@ icon = "icons/app_near_40px.gif"
 [package.metadata.ledger.apex_p]
 icon = "icons/app_near_32px.png"
 
+[dependencies]
+ledger_device_sdk = "1.25.0"
+include_gif = "1.2.4"
+hex = { version = "0.4.3", default-features = false, features = ["serde"] }
+bs58 = { version = "0.5.0", default-features = false }
+borsh =  { version = "0.1.0", path = "./borsh" }
+fmt_buffer =  { version = "0.1.0", path = "./fmt_buffer" }
+near_token =  { version = "0.1.0", path = "./near_token" }
+near_gas =  { version = "0.1.0", path = "./near_gas" }
+numtoa = "0.2.4"
+
+[profile.release]
+opt-level = 'z'
+lto = true
+
 [features]
 default = []
 debug = ["ledger_device_sdk/debug"]
