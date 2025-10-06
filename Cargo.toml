@@ -1,11 +1,11 @@
 [package]
 name = "near"
-version = "2.3.6"
+version = "2.3.8"
 authors = ["dj8yf0ul", "polyprogrammist"]
 edition = "2021"
 
 [dependencies]
-ledger_device_sdk = "1.25.0"
+ledger_device_sdk = "1.27.1"
 include_gif = "1.2.4"
 hex = { version = "0.4.3", default-features = false, features = ["serde"] }
 bs58 = { version = "0.5.0", default-features = false }
