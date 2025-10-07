@@ -1,6 +1,5 @@
 use crate::utils::crypto::{PathBip32, PublicKeyBe};
 use fmt_buffer::Buffer;
-//use near_gas::{GasBuffer, NearGas};
 use near_token::{NearToken, TokenBuffer};
 
 use ledger_device_sdk::{
