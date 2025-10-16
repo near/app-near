@@ -97,7 +97,7 @@ impl NearToken {
                 result.write_str("0");
             }
 
-             // Remove trailing zeros from millis_str before writing to buffer
+            // Remove trailing zeros from millis_str before writing to buffer
             let trimmed_millis_str = millis_str.trim_end_matches('0');
 
             result.write_str(trimmed_millis_str);
