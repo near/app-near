@@ -64,6 +64,8 @@ impl NearToken {
             result.write_str("0 NEAR");
         } else if *self == NearToken::from_yoctonear(1) {
             result.write_str("1 yoctoNEAR");
+        } else if *self < NearToken::from_micronear(1) {
+            result.write_str("less than 0.000001 NEAR");
         } else if *self < NearToken::from_millinear(1) {
             result.write_str("0.");
             let mut str_buf = [0u8; 10];
@@ -75,10 +77,12 @@ impl NearToken {
             for _ in 0..leading_zeros {
                 result.write_str("0");
             }
-            result.write_str(micro_str);
+
+            // Remove trailing zeros from micro_str before writing to buffer
+            let trimmed_micro_str = micro_str.trim_end_matches('0');
+            result.write_str(trimmed_micro_str);
+
             result.write_str(" NEAR");
-        } else if *self < NearToken::from_micronear(1) {
-            result.write_str("less than 0.000001 NEAR");
         } else if *self <= NearToken::from_millinear(999) {
             let millinear_rounded_up =
                 (self.as_yoctonear().saturating_add(ONE_MILLINEAR - 1) / ONE_MILLINEAR) as u32;
@@ -92,7 +96,11 @@ impl NearToken {
             for _ in 0..leading_zeros {
                 result.write_str("0");
             }
-            result.write_str(millis_str);
+
+             // Remove trailing zeros from millis_str before writing to buffer
+            let trimmed_millis_str = millis_str.trim_end_matches('0');
+
+            result.write_str(trimmed_millis_str);
             result.write_str(" NEAR");
         } else {
             let near_rounded_up =
@@ -131,8 +139,8 @@ mod tests {
     fn test_display() {
         for (integer, expected) in [
             (1234560000000000000000000000u128, "1234.56 NEAR"),
-            (10000000000000000000, "0.0001 NEAR"),
-            (10000000000000000000000, "less than 0.000001 NEAR"),
+            (10000000000000000000, "0.00001 NEAR"),
+            (10000000000000000000000, "0.01 NEAR"),
             (0, "0 NEAR"),
             (1, "1 yoctoNEAR"),
         ] {
