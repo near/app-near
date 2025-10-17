@@ -1,6 +1,6 @@
 [package]
 name = "near"
-version = "2.4.0"
+version = "2.4.1"
 authors = ["dj8yf0ul", "polyprogrammist"]
 edition = "2021"
 
@@ -27,7 +27,7 @@ icon = "icons/app_near_40px.gif"
 icon = "icons/app_near_32px.png"
 
 [dependencies]
-ledger_device_sdk = "1.27.1"
+ledger_device_sdk = "1.27.3"
 include_gif = "1.2.4"
 hex = { version = "0.4.3", default-features = false, features = ["serde"] }
 bs58 = { version = "0.5.0", default-features = false }

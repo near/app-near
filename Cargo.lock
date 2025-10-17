@@ -352,9 +352,9 @@ checksum = "7a79a3332a6609480d7d0c9eab957bca6b455b91bb84e66d19f5ff66294b85b8"
 
 [[package]]
 name = "ledger_device_sdk"
-version = "1.27.1"
+version = "1.27.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d99e6282d35ce40042895e6f34f91fa9a56aa2ec304691d71957053c586666bc"
+checksum = "11fd201290d8fed3839bddff552497d7bfacbd0792a429bc06a1c039491ac8c7"
 dependencies = [
  "const-zero",
  "include_gif",
@@ -367,9 +367,9 @@ dependencies = [
 
 [[package]]
 name = "ledger_secure_sdk_sys"
-version = "1.11.3"
+version = "1.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1b19cb4b5bcb8125ea4f5f6c0dcd409a4ec9ed9b4af0302e441b4afee379454"
+checksum = "73588e57cee6e8b3224699911cf5fa6684cdceffefa41bb42fbc17b1fe5fd752"
 dependencies = [
  "bindgen",
  "cc",
@@ -436,7 +436,7 @@ dependencies = [
 
 [[package]]
 name = "near"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "borsh",
  "bs58",
