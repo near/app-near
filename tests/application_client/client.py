@@ -104,17 +104,28 @@ def generic_test_sign(
                             screen_change_after_last_instruction=False,
                         )
                     else:
-                        navigator.navigate_until_text_and_compare(
-                            NavInsID.USE_CASE_REVIEW_TAP,
-                            [
-                                NavInsID.USE_CASE_ADDRESS_CONFIRMATION_CONFIRM,
-                                NavInsID.USE_CASE_REVIEW_CONFIRM
-                            ],
-                            condition,
-                            ROOT_SCREENSHOT_PATH,
-                            condition_folder,
-                            screen_change_after_last_instruction=False,
-                        )
+                        if condition == "Sign":
+                            navigator.navigate_until_text_and_compare(
+                                NavInsID.USE_CASE_REVIEW_TAP,
+                                [
+                                    NavInsID.USE_CASE_REVIEW_CONFIRM
+                                ],
+                                condition,
+                                ROOT_SCREENSHOT_PATH,
+                                condition_folder,
+                                screen_change_after_last_instruction=True,
+                            )
+                        else:
+                            navigator.navigate_until_text_and_compare(
+                                NavInsID.USE_CASE_REVIEW_TAP,
+                                [
+                                    NavInsID.USE_CASE_ADDRESS_CONFIRMATION_CONFIRM,
+                                ],
+                                condition,
+                                ROOT_SCREENSHOT_PATH,
+                                condition_folder,
+                                screen_change_after_last_instruction=True,
+                            )
             elif isinstance(chunk_event, RAPDU):
                 response = client.get_async_response()
 
