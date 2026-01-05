@@ -1,6 +1,6 @@
 [package]
 name = "near"
-version = "2.4.2"
+version = "2.4.3"
 authors = ["dj8yf0ul", "polyprogrammist"]
 edition = "2021"
 
@@ -27,7 +27,7 @@ icon = "icons/app_near_40px.gif"
 icon = "icons/app_near_32px.png"
 
 [dependencies]
-ledger_device_sdk = "1.29.0"
+ledger_device_sdk = "1.30.0"
 hex = { version = "0.4.3", default-features = false, features = ["serde"] }
 bs58 = { version = "0.5.0", default-features = false }
 borsh =  { version = "0.1.0", path = "./borsh" }
