@@ -21,6 +21,17 @@ pub fn handle(
         .deserialize_reader_in_place(stream)
         .map_err(|_err| AppSW::TxParsingFail)?;
 
+    handle_from_method_name(stream, method_name, params)
+}
+
+/// Continue FunctionCall handling after the method_name has already been consumed
+/// from the stream. Used by sign_tx.rs when the method name was pre-read for
+/// staking-method detection.
+pub fn handle_from_method_name(
+    stream: &mut HashingStream<SingleTxStream<'_>>,
+    method_name: CappedString<50>,
+    params: ActionParams,
+) -> Result<(), AppSW> {
     let args_bytes_count: u32 =
         u32::deserialize_reader(stream).map_err(|_err| AppSW::TxParsingFail)?;
 

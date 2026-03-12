@@ -77,6 +77,16 @@ impl<R: io::Read> io::Read for HashingStream<R> {
 }
 
 impl SingleTxStream<'_> {
+    pub fn remaining_in_current_chunk(&mut self) -> io::Result<&[u8]> {
+        let data = self
+            .comm
+            .get_data()
+            .map_err(|_err| io::Error::from(io::ErrorKind::BrokenPipe))?;
+
+        let (_read, left) = data.split_at(self.chunk_counter);
+        Ok(left)
+    }
+
     pub fn peek_u8(&mut self) -> io::Result<Option<u8>> {
         let data = self
             .comm

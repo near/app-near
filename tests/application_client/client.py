@@ -19,6 +19,7 @@ P1_CONFIRM = 0x00
 
 # Return codes
 SW_OK = 0x9000
+SW_DENY = 0x6985
 
 FINISH_STUB_APDU = RAPDU(0xFFFF, bytes())
 
@@ -76,6 +77,69 @@ def condition_folder_name(event_index: int, additional_index: bool, condition_in
     return str(event_index)
 
 
+def navigate_conditions(
+    navigator: Navigator,
+    conditions: NavigableConditions,
+    event_index: int,
+    test_name,
+    firmware,
+):
+    reject_labels = {"Reject", "Cancel"}
+    for cond_index, condition in enumerate(conditions.value):
+        str_index = condition_folder_name(event_index, len(conditions.value) > 1, cond_index)
+        condition_folder = Path(test_name) / (
+            str_index + "_" + condition.lower().replace(" ", "_").replace("!", "_bang")
+        )
+        if firmware.device.startswith("nano"):
+            navigator.navigate_until_text_and_compare(
+                NavInsID.RIGHT_CLICK,
+                [NavInsID.BOTH_CLICK],
+                condition,
+                ROOT_SCREENSHOT_PATH,
+                condition_folder,
+                screen_change_after_last_instruction=False,
+            )
+        else:
+            if condition == "Sign":
+                navigator.navigate_until_text_and_compare(
+                    NavInsID.USE_CASE_REVIEW_TAP,
+                    [
+                        NavInsID.USE_CASE_REVIEW_CONFIRM
+                    ],
+                    condition,
+                    ROOT_SCREENSHOT_PATH,
+                    condition_folder,
+                    screen_change_after_last_instruction=True,
+                )
+            elif condition in reject_labels:
+                navigator.navigate_until_text_and_compare(
+                    NavInsID.USE_CASE_REVIEW_TAP,
+                    [NavInsID.USE_CASE_REVIEW_REJECT, NavInsID.USE_CASE_CHOICE_CONFIRM],
+                    condition,
+                    ROOT_SCREENSHOT_PATH,
+                    condition_folder,
+                    screen_change_after_last_instruction=True,
+                )
+            else:
+                navigator.navigate_until_text_and_compare(
+                    NavInsID.USE_CASE_REVIEW_TAP,
+                    [
+                        NavInsID.USE_CASE_ADDRESS_CONFIRMATION_CONFIRM,
+                    ],
+                    condition,
+                    ROOT_SCREENSHOT_PATH,
+                    condition_folder,
+                    screen_change_after_last_instruction=True,
+                )
+
+
+def assert_async_response(client: Nearbackend, expected_response: RAPDU):
+    response = client.get_async_response()
+
+    assert response.status == expected_response.status  # type: ignore
+    assert response.data == expected_response.data  # type: ignore
+
+
 def generic_test_sign(
     client: Nearbackend,
     chunks: List[Union[bytes, AsyncAPDU]],
@@ -89,48 +153,36 @@ def generic_test_sign(
         while True:
             index, chunk_event = next(numbered_chunks)
             if isinstance(chunk_event, NavigableConditions):
-                for cond_index, condition in enumerate(chunk_event.value):
-                    str_index = condition_folder_name(index, len(chunk_event.value) > 1, cond_index)
-                    condition_folder = Path(test_name) / (
-                        str_index + "_" + condition.lower().replace(" ", "_").replace("!", "_bang")
-                    )
-                    if firmware.device.startswith("nano"):
-                        navigator.navigate_until_text_and_compare(
-                            NavInsID.RIGHT_CLICK,
-                            [NavInsID.BOTH_CLICK],
-                            condition,
-                            ROOT_SCREENSHOT_PATH,
-                            condition_folder,
-                            screen_change_after_last_instruction=False,
-                        )
-                    else:
-                        if condition == "Sign":
-                            navigator.navigate_until_text_and_compare(
-                                NavInsID.USE_CASE_REVIEW_TAP,
-                                [
-                                    NavInsID.USE_CASE_REVIEW_CONFIRM
-                                ],
-                                condition,
-                                ROOT_SCREENSHOT_PATH,
-                                condition_folder,
-                                screen_change_after_last_instruction=True,
-                            )
-                        else:
-                            navigator.navigate_until_text_and_compare(
-                                NavInsID.USE_CASE_REVIEW_TAP,
-                                [
-                                    NavInsID.USE_CASE_ADDRESS_CONFIRMATION_CONFIRM,
-                                ],
-                                condition,
-                                ROOT_SCREENSHOT_PATH,
-                                condition_folder,
-                                screen_change_after_last_instruction=True,
-                            )
+                navigate_conditions(navigator, chunk_event, index, test_name, firmware)
             elif isinstance(chunk_event, RAPDU):
-                response = client.get_async_response()
-
-                assert response.status == chunk_event.status  # type: ignore
-                assert response.data == chunk_event.data  # type: ignore
+                assert_async_response(client, chunk_event)
     except StopIteration as e:
+        if e.value != FINISH_STUB_APDU:
+            raise AssertionError(e.value) from e
+
+
+def generic_test_sign_single_review(
+    client: Nearbackend,
+    chunks: List[Union[bytes, AsyncAPDU]],
+    navigator: Navigator,
+    test_name,
+    firmware,
+):
+    numbered_chunks = enumerate(client.sign_message_chunks(chunks))
+    saw_review = False
+
+    try:
+        while True:
+            index, chunk_event = next(numbered_chunks)
+            if isinstance(chunk_event, NavigableConditions):
+                assert not saw_review
+                assert len(chunk_event.value) == 1
+
+                saw_review = True
+                navigate_conditions(navigator, chunk_event, index, test_name, firmware)
+            elif isinstance(chunk_event, RAPDU):
+                assert_async_response(client, chunk_event)
+    except StopIteration as e:
+        assert saw_review
         if e.value != FINISH_STUB_APDU:
             raise AssertionError(e.value) from e
