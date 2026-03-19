@@ -646,9 +646,6 @@ mod tests {
         let args = r#"{"account_id":"alice.near","amount":"1000000000000000000000000"}"#;
         let mut s = make_args(args);
         let result = try_parse_amount_from_args(&mut s);
-        assert_eq!(
-            result,
-            Some(near_token::NearToken::from_near(1))
-        );
+        assert_eq!(result, Some(near_token::NearToken::from_near(1)));
     }
 }
