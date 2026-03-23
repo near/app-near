@@ -46,6 +46,11 @@ mod stake;
 pub mod stake_fn_call;
 mod transfer;
 
+#[derive(serde::Deserialize)]
+struct StringArgs<'a> {
+    amount: &'a str,
+}
+
 pub fn ui_display_transfer(transfer: &parsing::types::Transfer, params: ActionParams) -> bool {
     let mut field_context: transfer::FieldsContext = transfer::FieldsContext::new();
     let mut writer = FieldsWriter::new();
@@ -238,12 +243,13 @@ pub fn is_staking_method(method_name: &str) -> bool {
 /// the args are known to be valid UTF-8).
 pub fn try_parse_amount_from_args(args: &mut FnCallCappedString) -> Option<near_token::NearToken> {
     let s = args.as_str();
-    let amount = json_string_field(s, "\"amount\"")?;
-    log::debug!("amount str: {}", amount);
-    let yocto = amount
+    let (data, _remainer) = serde_json_core::from_str::<StringArgs<'_>>(s).ok()?;
+    log::debug!("amount str: {}", data.amount);
+    let yocto = data
+        .amount
         .parse::<u128>()
         .ok()
-        .or_else(|| parse_decimal_near_to_yocto(amount))?;
+        .or_else(|| parse_decimal_near_to_yocto(data.amount))?;
     log::debug!("amount yocto u128: {}", yocto);
     Some(near_token::NearToken::from_yoctonear(yocto))
 }
@@ -278,53 +284,6 @@ fn parse_decimal_near_to_yocto(amount: &str) -> Option<u128> {
     let frac_part = core::str::from_utf8(&frac_buf).ok()?.parse::<u128>().ok()?;
 
     whole_part.checked_add(frac_part)
-}
-
-fn json_string_field<'a>(s: &'a str, key: &str) -> Option<&'a str> {
-    let bytes = s.as_bytes();
-    let mut search_from = 0;
-
-    loop {
-        let key_start = s[search_from..].find(key).map(|i| i + search_from)?;
-        let mut prev = key_start;
-        while prev > 0 && bytes[prev - 1].is_ascii_whitespace() {
-            prev -= 1;
-        }
-
-        let key_boundary_is_valid = prev > 0 && matches!(bytes[prev - 1], b'{' | b',');
-        if !key_boundary_is_valid {
-            search_from = key_start + key.len();
-            continue;
-        }
-
-        let mut i = key_start + key.len();
-
-        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
-            i += 1;
-        }
-        if i >= bytes.len() || bytes[i] != b':' {
-            return None;
-        }
-        i += 1;
-
-        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
-            i += 1;
-        }
-        if i >= bytes.len() || bytes[i] != b'"' {
-            return None;
-        }
-        i += 1;
-
-        let value_start = i;
-        while i < bytes.len() && bytes[i] != b'"' {
-            i += 1;
-        }
-        if i >= bytes.len() {
-            return None;
-        }
-
-        return Some(&s[value_start..i]);
-    }
 }
 
 #[derive(Copy, Clone)]

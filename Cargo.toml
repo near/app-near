@@ -35,6 +35,8 @@ fmt_buffer =  { version = "0.1.0", path = "./fmt_buffer" }
 near_token =  { version = "0.1.0", path = "./near_token" }
 near_gas =  { version = "0.1.0", path = "./near_gas" }
 numtoa = "0.2.4"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde-json-core = "0.6.0"
 
 [profile.release]
 opt-level = 'z'
