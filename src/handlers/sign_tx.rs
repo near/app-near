@@ -56,6 +56,7 @@ pub fn handler(mut stream: SingleTxStream<'_>) -> Result<Signature, AppSW> {
     // Only skip the generic prefix screen when the current APDU already proves
     // this is a stake/unstake single-action flow. Otherwise keep the original
     // prefix-first behavior so APDU timing for legacy tests stays unchanged.
+    // `None` means this single action is not a staking flow; keep legacy behavior.
     let combined_flow = if number_of_actions == 1 {
         detect_combined_stake_flow(&mut stream)?
     } else {

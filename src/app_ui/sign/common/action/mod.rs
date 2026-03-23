@@ -256,6 +256,7 @@ fn parse_decimal_near_to_yocto(amount: &str) -> Option<u128> {
 
     let whole = &amount[..dot_idx];
     let frac = &amount[dot_idx + 1..];
+    // Reject trailing-dot forms like "1." to keep parsing strict and predictable.
     if whole.is_empty() || frac.is_empty() {
         return None;
     }
@@ -280,49 +281,67 @@ fn parse_decimal_near_to_yocto(amount: &str) -> Option<u128> {
 }
 
 fn json_string_field<'a>(s: &'a str, key: &str) -> Option<&'a str> {
-    let key_start = s.find(key)?;
-    let mut i = key_start + key.len();
     let bytes = s.as_bytes();
+    let mut search_from = 0;
 
-    while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+    loop {
+        let key_start = s[search_from..].find(key).map(|i| i + search_from)?;
+        let mut prev = key_start;
+        while prev > 0 && bytes[prev - 1].is_ascii_whitespace() {
+            prev -= 1;
+        }
+
+        let key_boundary_is_valid = prev > 0 && matches!(bytes[prev - 1], b'{' | b',');
+        if !key_boundary_is_valid {
+            search_from = key_start + key.len();
+            continue;
+        }
+
+        let mut i = key_start + key.len();
+
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if i >= bytes.len() || bytes[i] != b':' {
+            return None;
+        }
         i += 1;
-    }
-    if i >= bytes.len() || bytes[i] != b':' {
-        return None;
-    }
-    i += 1;
 
-    while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if i >= bytes.len() || bytes[i] != b'"' {
+            return None;
+        }
         i += 1;
-    }
-    if i >= bytes.len() || bytes[i] != b'"' {
-        return None;
-    }
-    i += 1;
 
-    let value_start = i;
-    while i < bytes.len() && bytes[i] != b'"' {
-        i += 1;
-    }
-    if i >= bytes.len() {
-        return None;
-    }
+        let value_start = i;
+        while i < bytes.len() && bytes[i] != b'"' {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            return None;
+        }
 
-    Some(&s[value_start..i])
+        return Some(&s[value_start..i]);
+    }
 }
 
 #[derive(Copy, Clone)]
 enum StakeAmountSource {
     Deposit,
     Args,
-    None,
+    NotApplicable,
 }
 
-fn stake_amount_source(method_name: &str) -> StakeAmountSource {
+fn stake_method_routing(method_name: &str) -> (stake_fn_call::StakeOpKind, StakeAmountSource) {
+    use stake_fn_call::StakeOpKind;
+
     match method_name {
-        "deposit_and_stake" => StakeAmountSource::Deposit,
-        "stake" | "unstake" | "withdraw" => StakeAmountSource::Args,
-        _ => StakeAmountSource::None,
+        "deposit_and_stake" => (StakeOpKind::DepositAndStake, StakeAmountSource::Deposit),
+        "stake" => (StakeOpKind::DepositAndStake, StakeAmountSource::Args),
+        "unstake" | "withdraw" => (StakeOpKind::Unstake, StakeAmountSource::Args),
+        _ => (StakeOpKind::UnstakeAll, StakeAmountSource::NotApplicable),
     }
 }
 
@@ -364,13 +383,7 @@ pub fn ui_display_fn_call_stake(
     gas: near_gas::NearGas,
     deposit: near_token::NearToken,
 ) -> bool {
-    use stake_fn_call::StakeOpKind;
-
-    let kind = match method_name {
-        "deposit_and_stake" | "stake" => StakeOpKind::DepositAndStake,
-        "unstake" | "withdraw" => StakeOpKind::Unstake,
-        _ => StakeOpKind::UnstakeAll,
-    };
+    let (kind, amount_source) = stake_method_routing(method_name);
 
     #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
     let review_title = match method_name {
@@ -405,10 +418,10 @@ pub fn ui_display_fn_call_stake(
     };
 
     // Determine the amount source by method semantics.
-    let display_amount = match stake_amount_source(method_name) {
+    let display_amount = match amount_source {
         StakeAmountSource::Deposit => Some(deposit),
         StakeAmountSource::Args => amount_opt,
-        StakeAmountSource::None => None,
+        StakeAmountSource::NotApplicable => None,
     };
     let mut field_context = stake_fn_call::FieldsContext::new();
     let mut writer: FieldsWriter<'_, { stake_fn_call::MAX_FIELDS }> = FieldsWriter::new();
@@ -623,8 +636,9 @@ mod tests {
 
     fn make_args(s: &str) -> FnCallCappedString {
         let mut args = FnCallCappedString::new();
-        args.deserialize_with_bytes_count(&mut s.as_bytes(), s.len() as u32)
-            .unwrap();
+        assert!(args
+            .deserialize_with_bytes_count(&mut s.as_bytes(), s.len() as u32)
+            .is_ok());
         args
     }
 
@@ -647,5 +661,63 @@ mod tests {
         let mut s = make_args(args);
         let result = try_parse_amount_from_args(&mut s);
         assert_eq!(result, Some(near_token::NearToken::from_near(1)));
+    }
+
+    #[test]
+    fn parses_amount_ignores_key_prefix_false_match() {
+        let args = r#"{"total_amount":"999000000000000000000000000","amount":"5000000000000000000000000"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(
+            result,
+            Some(near_token::NearToken::from_yoctonear(
+                5_000_000_000_000_000_000_000_000
+            ))
+        );
+    }
+
+    #[test]
+    fn parses_decimal_with_24_fractional_digits() {
+        let args = r#"{"amount":"1.000000000000000000000001"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(
+            result,
+            Some(near_token::NearToken::from_yoctonear(
+                1_000_000_000_000_000_000_000_001
+            ))
+        );
+    }
+
+    #[test]
+    fn rejects_decimal_with_more_than_24_fractional_digits() {
+        let args = r#"{"amount":"1.0000000000000000000000001"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn parses_zero_amount() {
+        let args = r#"{"amount":"0"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(result, Some(near_token::NearToken::from_yoctonear(0)));
+    }
+
+    #[test]
+    fn rejects_overflow_decimal_amount() {
+        let args = r#"{"amount":"340282366920938463463374607431.768211456"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn rejects_trailing_dot_decimal_amount() {
+        let args = r#"{"amount":"1."}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(result, None);
     }
 }
