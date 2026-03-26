@@ -85,11 +85,13 @@ pub fn format_combined<'b, 'a: 'b>(
         .pub_key_context
         .format_public_key(&stake.public_key);
 
-    let signer_fields = ElipsisFields::from_capped_string(
-        signer_id,
-        "Stake with account",
-        &mut field_context.signer_display_buf,
-    );
+    #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
+    let title = "Stake with account";
+    #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
+    let title = "Stake with acc";
+
+    let signer_fields =
+        ElipsisFields::from_capped_string(signer_id, title, &mut field_context.signer_display_buf);
     writer.push_fields(signer_fields);
 
     stake
