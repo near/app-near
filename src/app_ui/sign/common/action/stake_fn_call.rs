@@ -52,9 +52,14 @@ pub fn format<'b, 'a: 'b>(
 ) {
     match kind {
         StakeOpKind::DepositAndStake => {
+            #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
+            let signer_title = "Stake with account";
+            #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
+            let signer_title = "Stake with acc";
+
             let signer_fields = ElipsisFields::from_capped_string(
                 signer_id,
-                "Stake with account",
+                signer_title,
                 &mut field_context.signer_display_buf,
             );
             writer.push_fields(signer_fields);

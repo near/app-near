@@ -60,6 +60,7 @@ pub struct CombinedFieldsContext {
     pub signer_display_buf: EllipsisBuffer,
     pub stake_buffer: TokenBuffer,
     pub pub_key_context: tx_public_key_context::FieldsContext,
+    pub pool_display_buf: EllipsisBuffer,
 }
 
 impl CombinedFieldsContext {
@@ -68,6 +69,7 @@ impl CombinedFieldsContext {
             signer_display_buf: EllipsisBuffer::default(),
             stake_buffer: TokenBuffer::new(),
             pub_key_context: tx_public_key_context::FieldsContext::new(),
+            pool_display_buf: EllipsisBuffer::default(),
         }
     }
 }
@@ -77,6 +79,7 @@ pub const COMBINED_MAX_FIELDS: usize = 4;
 
 pub fn format_combined<'b, 'a: 'b>(
     signer_id: &'b mut CappedAccountId,
+    receiver_id: &'b mut CappedAccountId,
     stake: &parsing::types::Stake,
     field_context: &'a mut CombinedFieldsContext,
     writer: &'_ mut FieldsWriter<'b, COMBINED_MAX_FIELDS>,
@@ -102,8 +105,10 @@ pub fn format_combined<'b, 'a: 'b>(
         value: field_context.stake_buffer.as_str(),
     }));
 
-    writer.push_fields(ElipsisFields::one(Field {
-        name: "Validator key",
-        value: field_context.pub_key_context.as_str(),
-    }));
+    let pool_fields = ElipsisFields::from_capped_string(
+        receiver_id,
+        "Stake to pool",
+        &mut field_context.pool_display_buf,
+    );
+    writer.push_fields(pool_fields);
 }

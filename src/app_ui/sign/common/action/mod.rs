@@ -314,6 +314,7 @@ pub fn ui_display_stake_combined(
 
     stake::format_combined(
         &mut prefix.signer_id,
+        &mut prefix.receiver_id,
         stake,
         &mut field_context,
         &mut writer,
