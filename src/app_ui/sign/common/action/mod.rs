@@ -22,7 +22,6 @@ use ledger_device_sdk::{
     },
 };
 
-#[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
 use crate::app_ui::logo::NEAR_LOGO;
 use numtoa::NumToA;
 
@@ -327,10 +326,10 @@ pub fn ui_display_stake_combined(
     let sign_title = "Sign transaction to deposit and stake NEAR?";
 
     #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
-    let review_title = "Review stake";
+    let review_title = ["Review transaction to", "deposit and stake NEAR", ""];
 
     #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
-    let sign_title = "Sign stake?";
+    let sign_title = "Sign transaction?";
 
     ui_display_last_action(review_title, sign_title, &mut writer)
 }
@@ -347,7 +346,8 @@ pub fn ui_display_fn_call_stake(
 
     #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
     let review_title = match method_name {
-        "deposit_and_stake" | "stake" => "Review transaction to deposit and stake NEAR",
+        "deposit_and_stake" => "Review transaction to deposit and stake NEAR",
+        "stake" => "Review transaction to stake NEAR",
         "unstake" | "withdraw" | "unstake_all" | "withdraw_all" => {
             "Review transaction to unstake NEAR"
         }
@@ -356,14 +356,18 @@ pub fn ui_display_fn_call_stake(
 
     #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
     let review_title = match method_name {
-        "deposit_and_stake" | "stake" => "Review stake",
-        "unstake" | "withdraw" | "unstake_all" | "withdraw_all" => "Review unstake",
-        _ => "Review transaction",
+        "deposit_and_stake" => ["Review transaction to", "deposit and stake NEAR", ""],
+        "stake" => ["Review transaction to", "stake NEAR", ""],
+        "unstake" | "withdraw" | "unstake_all" | "withdraw_all" => {
+            ["Review transaction to", "unstake NEAR", ""]
+        }
+        _ => ["Review transaction", "", ""],
     };
 
     #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
     let sign_title = match method_name {
-        "deposit_and_stake" | "stake" => "Sign transaction to deposit and stake NEAR?",
+        "deposit_and_stake" => "Sign transaction to deposit and stake NEAR?",
+        "stake" => "Sign transaction to stake NEAR?",
         "unstake" | "withdraw" | "unstake_all" | "withdraw_all" => {
             "Sign transaction to unstake NEAR?"
         }
@@ -372,8 +376,8 @@ pub fn ui_display_fn_call_stake(
 
     #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
     let sign_title = match method_name {
-        "deposit_and_stake" | "stake" => "Sign stake?",
-        "unstake" | "withdraw" | "unstake_all" | "withdraw_all" => "Sign unstake?",
+        "deposit_and_stake" | "stake" => "Sign transaction?",
+        "unstake" | "withdraw" | "unstake_all" | "withdraw_all" => "Sign transaction?",
         _ => "Sign transaction",
     };
 
@@ -401,18 +405,22 @@ pub fn ui_display_fn_call_stake(
 
 /// Render a "last action" review (always uses Sign/Hold-to-sign, never "Next Action").
 /// `review_title` is the header shown before the fields; `sign_title` is the confirm label.
-fn ui_display_last_action<const N: usize>(
-    review_title: &str,
+fn ui_display_last_action<
+    const N: usize,
+    #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))] const L: usize,
+>(
+    #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))] review_title: &str,
+    #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
+    review_title: [&str; L],
     sign_title: &str,
     writer: &mut FieldsWriter<'_, N>,
 ) -> bool {
     #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
     {
-        let binding = [review_title];
         let my_review = MultiFieldReview::new(
             writer.get_fields(),
-            &binding,
-            Some(&EYE),
+            &review_title,
+            Some(&NEAR_LOGO),
             sign_title,
             Some(&VALIDATE_14),
             "Reject",

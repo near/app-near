@@ -42,6 +42,10 @@ serde-json-core = "0.6.0"
 opt-level = 'z'
 lto = true
 
+[profile.dev]
+opt-level = 'z'
+lto = true
+
 [features]
 default = []
 debug = ["ledger_device_sdk/debug", "ledger_device_sdk/log_trace"]

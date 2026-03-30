@@ -74,7 +74,7 @@ impl CombinedFieldsContext {
     }
 }
 
-/// Stake account (1-2) + Stake amount (1) + Validator key (1)
+/// Stake account (1-2) + Stake amount (1) + Stake to pool (1)
 pub const COMBINED_MAX_FIELDS: usize = 4;
 
 pub fn format_combined<'b, 'a: 'b>(
