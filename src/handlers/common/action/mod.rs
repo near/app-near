@@ -25,7 +25,16 @@ pub fn handle_action(
     params: ActionParams,
 ) -> Result<(), AppSW> {
     let action = Action::deserialize_reader(stream).map_err(|_err| AppSW::TxParsingFail)?;
+    dispatch_action(stream, action, params)
+}
 
+/// Dispatch an already-deserialized `Action` — used when the action tag byte
+/// has been consumed upstream (e.g. in sign_tx.rs single-action special path).
+pub fn dispatch_action(
+    stream: &mut HashingStream<SingleTxStream<'_>>,
+    action: Action,
+    params: ActionParams,
+) -> Result<(), AppSW> {
     match action {
         Action::Transfer => transfer::handle(stream, params),
         Action::CreateAccount => create_account::handle(stream, params),

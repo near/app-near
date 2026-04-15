@@ -1,6 +1,6 @@
 [package]
 name = "near"
-version = "2.4.3"
+version = "2.5.0"
 authors = ["dj8yf0ul", "polyprogrammist"]
 edition = "2021"
 
@@ -27,7 +27,7 @@ icon = "icons/app_near_40px.gif"
 icon = "icons/app_near_32px.png"
 
 [dependencies]
-ledger_device_sdk = "1.30.0"
+ledger_device_sdk =  { version = "1.34.0", features = [] }
 hex = { version = "0.4.3", default-features = false, features = ["serde"] }
 bs58 = { version = "0.5.0", default-features = false }
 borsh =  { version = "0.1.0", path = "./borsh" }
@@ -35,14 +35,20 @@ fmt_buffer =  { version = "0.1.0", path = "./fmt_buffer" }
 near_token =  { version = "0.1.0", path = "./near_token" }
 near_gas =  { version = "0.1.0", path = "./near_gas" }
 numtoa = "0.2.4"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde-json-core = "0.6.0"
 
 [profile.release]
 opt-level = 'z'
 lto = true
 
+[profile.dev]
+opt-level = 'z'
+lto = true
+
 [features]
 default = []
-debug = ["ledger_device_sdk/debug"]
+debug = ["ledger_device_sdk/debug", "ledger_device_sdk/log_trace"]
 speculos = ["ledger_device_sdk/speculos"]
 
 [lints.rust]

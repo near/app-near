@@ -6,6 +6,7 @@ pub enum KeyType {
     SECP256K1 = 1,
 }
 
+#[derive(Clone, Copy)]
 pub enum TxPublicKey {
     /// 256 bit elliptic curve based public-key.
     ED25519([u8; 32]),

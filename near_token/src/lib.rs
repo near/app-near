@@ -8,6 +8,7 @@ use fmt_buffer::Buffer;
 /// Balance is type for storing amounts of tokens.
 type Balance = u128;
 
+const ONE_NEAR: u128 = 10_u128.pow(24);
 const ONE_MILLINEAR: u128 = 10_u128.pow(21);
 const ONE_MICRONEAR: u128 = 10_u128.pow(18);
 use numtoa::NumToA;
@@ -35,6 +36,10 @@ impl NearToken {
     /// use near_token::NearToken;
     /// assert_eq!(NearToken::from_millinear(1), NearToken::from_yoctonear(10u128.pow(21)))
     /// ```
+    pub const fn from_near(inner: u128) -> Self {
+        Self(inner * ONE_NEAR)
+    }
+
     pub const fn from_millinear(inner: u128) -> Self {
         Self(inner * ONE_MILLINEAR)
     }

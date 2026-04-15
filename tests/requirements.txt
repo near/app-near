@@ -1,5 +1,5 @@
 pytest
-ragger[speculos,ledgerwallet]>=1.17.0
+ragger[speculos,ledgerwallet]>=1.43.0
 ecdsa>=0.16.1,<0.17.0
 typing-extensions>=3.7.4.3
 ledgercomm>=1.1.0

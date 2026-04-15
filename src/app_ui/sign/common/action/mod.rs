@@ -7,8 +7,8 @@ use crate::Instruction;
 use ledger_device_sdk::io::Comm;
 #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
 use ledger_device_sdk::nbgl::{
-    CenteredInfo, CenteredInfoStyle, InfoButton, InfoLongPress, NbglGenericReview, NbglPageContent,
-    NbglStatus, TagValueList, TuneIndex,
+    CenteredInfo, CenteredInfoStyle, InfoButton, InfoLongPress, NbglChoice, NbglGenericReview,
+    NbglPageContent, NbglStatus, TagValueList, TuneIndex,
 };
 #[cfg(any(target_os = "nanox", target_os = "nanosplus"))]
 use ledger_device_sdk::{
@@ -22,11 +22,15 @@ use ledger_device_sdk::{
     },
 };
 
-#[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
 use crate::app_ui::logo::NEAR_LOGO;
 use numtoa::NumToA;
 
 use super::tx_public_key_context;
+
+#[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
+use core::ops::Not;
+
+use ledger_device_sdk::log;
 
 mod add_key_common;
 mod create_account;
@@ -38,7 +42,13 @@ mod function_call_common;
 mod function_call_permission;
 mod function_call_str;
 mod stake;
+pub mod stake_fn_call;
 mod transfer;
+
+#[derive(serde::Deserialize)]
+struct StringArgs<'a> {
+    amount: &'a str,
+}
 
 pub fn ui_display_transfer(transfer: &parsing::types::Transfer, params: ActionParams) -> bool {
     let mut field_context: transfer::FieldsContext = transfer::FieldsContext::new();
@@ -213,6 +223,264 @@ pub fn ui_display_delegate_error(#[allow(unused)] comm: &mut Comm) {
     }
 }
 
+/// Returns `true` if `method_name` is a known staking pool method.
+pub fn is_staking_method(method_name: &str) -> bool {
+    matches!(
+        method_name,
+        "deposit_and_stake" | "stake" | "unstake" | "unstake_all" | "withdraw" | "withdraw_all"
+    )
+}
+
+/// Attempt to parse a yoctoNEAR amount from a JSON args string.
+/// Supports:
+/// - integer yocto strings: `{"amount":"1157130000000000000000000"}`
+/// - decimal NEAR strings: `{"amount":"0.180623655669747439464495"}`
+///
+/// Returns `None` if the key is absent or unparsable.
+///
+/// Only call this after a successful `deserialize_with_bytes_count` (i.e. when
+/// the args are known to be valid UTF-8).
+pub fn try_parse_amount_from_args(args: &mut FnCallCappedString) -> Option<near_token::NearToken> {
+    let s = args.as_str();
+    let (data, _remainer) = serde_json_core::from_str::<StringArgs<'_>>(s).ok()?;
+    log::debug!("amount str: {}", data.amount);
+    let yocto = data
+        .amount
+        .parse::<u128>()
+        .ok()
+        .or_else(|| parse_decimal_near_to_yocto(data.amount))?;
+    log::debug!("amount yocto u128: {}", yocto);
+    Some(near_token::NearToken::from_yoctonear(yocto))
+}
+
+fn parse_decimal_near_to_yocto(amount: &str) -> Option<u128> {
+    let dot_idx = amount.find('.')?;
+    if amount[dot_idx + 1..].contains('.') {
+        return None;
+    }
+
+    let whole = &amount[..dot_idx];
+    let frac = &amount[dot_idx + 1..];
+    // Reject trailing-dot forms like "1." to keep parsing strict and predictable.
+    if whole.is_empty() || frac.is_empty() {
+        return None;
+    }
+    if frac.len() > 24 {
+        return None;
+    }
+    if !whole.as_bytes().iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    if !frac.as_bytes().iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+
+    let yocto_per_near = near_token::NearToken::from_near(1).as_yoctonear();
+    let whole_part = whole.parse::<u128>().ok()?.checked_mul(yocto_per_near)?;
+    let mut frac_buf = [b'0'; 24];
+    let frac_len = frac.len();
+    frac_buf[..frac_len].copy_from_slice(frac.as_bytes());
+    let frac_part = core::str::from_utf8(&frac_buf).ok()?.parse::<u128>().ok()?;
+
+    whole_part.checked_add(frac_part)
+}
+
+#[derive(Copy, Clone)]
+enum StakeAmountSource {
+    Deposit,
+    Args,
+    NotApplicable,
+}
+
+fn stake_method_routing(method_name: &str) -> (stake_fn_call::StakeOpKind, StakeAmountSource) {
+    use stake_fn_call::StakeOpKind;
+
+    match method_name {
+        "deposit_and_stake" => (StakeOpKind::DepositAndStake, StakeAmountSource::Deposit),
+        "stake" => (StakeOpKind::DepositAndStake, StakeAmountSource::Args),
+        "unstake" | "withdraw" => (StakeOpKind::Unstake, StakeAmountSource::Args),
+        _ => (StakeOpKind::UnstakeAll, StakeAmountSource::NotApplicable),
+    }
+}
+
+/// Merged prefix + native Stake action review (single combined screen).
+pub fn ui_display_stake_combined(
+    prefix: &mut parsing::types::transaction::prefix::Prefix,
+    stake: &parsing::types::Stake,
+) -> bool {
+    let mut field_context = stake::CombinedFieldsContext::new();
+    let mut writer: FieldsWriter<'_, { stake::COMBINED_MAX_FIELDS }> = FieldsWriter::new();
+
+    stake::format_combined(
+        &mut prefix.signer_id,
+        &mut prefix.receiver_id,
+        stake,
+        &mut field_context,
+        &mut writer,
+    );
+
+    #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
+    let review_title = "Review transaction to deposit and stake NEAR";
+
+    #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
+    let sign_title = "Sign transaction to deposit and stake NEAR?";
+
+    #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
+    let review_title = ["Review transaction to", "deposit and stake NEAR", ""];
+
+    #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
+    let sign_title = "Sign transaction?";
+
+    ui_display_last_action(review_title, sign_title, &mut writer)
+}
+
+/// Merged prefix + staking FunctionCall review (single combined screen).
+pub fn ui_display_fn_call_stake(
+    prefix: &mut parsing::types::transaction::prefix::Prefix,
+    method_name: &str,
+    amount_opt: Option<near_token::NearToken>,
+    gas: near_gas::NearGas,
+    deposit: near_token::NearToken,
+) -> bool {
+    let (kind, amount_source) = stake_method_routing(method_name);
+
+    #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
+    let review_title = match method_name {
+        "deposit_and_stake" => "Review transaction to deposit and stake NEAR",
+        "stake" => "Review transaction to stake NEAR",
+        "unstake" | "withdraw" | "unstake_all" | "withdraw_all" => {
+            "Review transaction to unstake NEAR"
+        }
+        _ => "Review transaction",
+    };
+
+    #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
+    let review_title = match method_name {
+        "deposit_and_stake" => ["Review transaction to", "deposit and stake NEAR", ""],
+        "stake" => ["Review transaction to", "stake NEAR", ""],
+        "unstake" | "withdraw" | "unstake_all" | "withdraw_all" => {
+            ["Review transaction to", "unstake NEAR", ""]
+        }
+        _ => ["Review transaction", "", ""],
+    };
+
+    #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
+    let sign_title = match method_name {
+        "deposit_and_stake" => "Sign transaction to deposit and stake NEAR?",
+        "stake" => "Sign transaction to stake NEAR?",
+        "unstake" | "withdraw" | "unstake_all" | "withdraw_all" => {
+            "Sign transaction to unstake NEAR?"
+        }
+        _ => "Sign transaction",
+    };
+
+    #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
+    let sign_title = match method_name {
+        "deposit_and_stake" | "stake" => "Sign transaction?",
+        "unstake" | "withdraw" | "unstake_all" | "withdraw_all" => "Sign transaction?",
+        _ => "Sign transaction",
+    };
+
+    // Determine the amount source by method semantics.
+    let display_amount = match amount_source {
+        StakeAmountSource::Deposit => Some(deposit),
+        StakeAmountSource::Args => amount_opt,
+        StakeAmountSource::NotApplicable => None,
+    };
+    let mut field_context = stake_fn_call::FieldsContext::new();
+    let mut writer: FieldsWriter<'_, { stake_fn_call::MAX_FIELDS }> = FieldsWriter::new();
+
+    stake_fn_call::format(
+        &mut prefix.signer_id,
+        &mut prefix.receiver_id,
+        display_amount,
+        gas,
+        kind,
+        &mut field_context,
+        &mut writer,
+    );
+
+    ui_display_last_action(review_title, sign_title, &mut writer)
+}
+
+/// Render a "last action" review (always uses Sign/Hold-to-sign, never "Next Action").
+/// `review_title` is the header shown before the fields; `sign_title` is the confirm label.
+fn ui_display_last_action<
+    const N: usize,
+    #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))] const L: usize,
+>(
+    #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))] review_title: &str,
+    #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
+    review_title: [&str; L],
+    sign_title: &str,
+    writer: &mut FieldsWriter<'_, N>,
+) -> bool {
+    #[cfg(not(any(target_os = "stax", target_os = "flex", target_os = "apex_p")))]
+    {
+        let my_review = MultiFieldReview::new(
+            writer.get_fields(),
+            &review_title,
+            Some(&NEAR_LOGO),
+            sign_title,
+            Some(&VALIDATE_14),
+            "Reject",
+            Some(&CROSSMARK),
+        );
+        my_review.show()
+    }
+
+    #[cfg(any(target_os = "stax", target_os = "flex", target_os = "apex_p"))]
+    {
+        let centered_info = CenteredInfo::new(
+            review_title,
+            "",
+            "",
+            Some(&NEAR_LOGO),
+            false,
+            CenteredInfoStyle::LargeCaseBoldInfo,
+            0,
+        );
+        let tag_values_list = TagValueList::new(writer.get_fields(), 2, false, false);
+        let info_longpress = InfoLongPress::new(
+            sign_title,
+            Some(&NEAR_LOGO),
+            "Hold to sign",
+            TuneIndex::Error,
+        );
+
+        let review: NbglGenericReview = NbglGenericReview::new()
+            .add_content(NbglPageContent::CenteredInfo(centered_info))
+            .add_content(NbglPageContent::TagValueList(tag_values_list))
+            .add_content(NbglPageContent::InfoLongPress(info_longpress));
+
+        let mut show_tx = true;
+        let mut status_text = "Transaction rejected";
+        let mut confirm = false;
+        while show_tx {
+            confirm = review.show("Reject");
+            show_tx = if confirm {
+                status_text = "Transaction signed";
+                false
+            } else {
+                NbglChoice::new()
+                    .show(
+                        "Reject transaction?",
+                        "",
+                        "Yes, reject",
+                        "Go back to transaction",
+                    )
+                    .not()
+            };
+        }
+
+        NbglStatus::new()
+            .text(status_text)
+            .show(status_text == "Transaction signed");
+
+        confirm
+    }
+}
+
 pub fn ui_display_common<const N: usize>(
     writer: &mut FieldsWriter<'_, N>,
     params: ActionParams,
@@ -327,4 +595,97 @@ fn ordinal_string(fmt_buf: &mut OrdinalStringBuffer, params: ActionParams) -> bo
     fmt_buf.write_str(params.total_actions.numtoa_str(10, &mut num_out));
 
     params.ordinal_action == params.total_actions
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app_ui::aliases::FnCallCappedString;
+
+    fn make_args(s: &str) -> FnCallCappedString {
+        let mut args = FnCallCappedString::new();
+        assert!(args
+            .deserialize_with_bytes_count(&mut s.as_bytes(), s.len() as u32)
+            .is_ok());
+        args
+    }
+
+    #[test]
+    fn parses_amount_with_json_spacing() {
+        let args = r#"{"amount" : "1.25"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(
+            result,
+            Some(near_token::NearToken::from_yoctonear(
+                1_250_000_000_000_000_000_000_000
+            ))
+        );
+    }
+
+    #[test]
+    fn parses_amount_with_extra_fields() {
+        let args = r#"{"account_id":"alice.near","amount":"1000000000000000000000000"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(result, Some(near_token::NearToken::from_near(1)));
+    }
+
+    #[test]
+    fn parses_amount_ignores_key_prefix_false_match() {
+        let args = r#"{"total_amount":"999000000000000000000000000","amount":"5000000000000000000000000"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(
+            result,
+            Some(near_token::NearToken::from_yoctonear(
+                5_000_000_000_000_000_000_000_000
+            ))
+        );
+    }
+
+    #[test]
+    fn parses_decimal_with_24_fractional_digits() {
+        let args = r#"{"amount":"1.000000000000000000000001"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(
+            result,
+            Some(near_token::NearToken::from_yoctonear(
+                1_000_000_000_000_000_000_000_001
+            ))
+        );
+    }
+
+    #[test]
+    fn rejects_decimal_with_more_than_24_fractional_digits() {
+        let args = r#"{"amount":"1.0000000000000000000000001"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn parses_zero_amount() {
+        let args = r#"{"amount":"0"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(result, Some(near_token::NearToken::from_yoctonear(0)));
+    }
+
+    #[test]
+    fn rejects_overflow_decimal_amount() {
+        let args = r#"{"amount":"340282366920938463463374607431.768211456"}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn rejects_trailing_dot_decimal_amount() {
+        let args = r#"{"amount":"1."}"#;
+        let mut s = make_args(args);
+        let result = try_parse_amount_from_args(&mut s);
+        assert_eq!(result, None);
+    }
 }
